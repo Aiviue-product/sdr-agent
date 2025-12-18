@@ -54,7 +54,7 @@ def verify_bulk_batch(email_list: list) -> dict:
     Sends up to 100 emails to ZeroBounce Bulk API.
     Returns raw dict: { 'email@domain.com': 'valid' }
     """
-    if not email_list:
+    if not email_list: 
         return {}
     
     clean_emails = [str(e).strip() for e in email_list if e and not pd.isna(e)]
