@@ -54,9 +54,9 @@ export const LeadVerificationPage = () => {
     };
 
     const handleMoveToCampaign = () => {
-        // Later you will implement the actual route
-        // router.push('/campaigns/new'); 
-        alert("Redirecting to Campaign Setup...");
+
+        // Redirects the user to the new Campaign Dashboard we created in Phase 3
+        router.push('/campaign');
     };
 
     return (
