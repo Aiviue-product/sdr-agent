@@ -20,7 +20,7 @@ if settings.CORS_ORIGINS:
     )
 
 # Include Routes 
-app.include_router(endpoints.router, prefix=settings.API_V1_STR)
+app.include_router(endpoints.router, prefix=settings.API_V1_STR) 
 
 @app.get("/")
 def health_check():

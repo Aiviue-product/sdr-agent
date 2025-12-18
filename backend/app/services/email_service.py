@@ -82,5 +82,5 @@ def verify_bulk_batch(email_list: list) -> dict:
              
         return results_map
     except Exception as e:
-        print(f"Bulk API Exception: {e}") 
+        print(f"Bulk API Exception: {e}")  
         return {}
