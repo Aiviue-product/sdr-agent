@@ -12,13 +12,16 @@ import {
     User
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-// Ensure this path points to your api.ts
+
 import {
     fetchLeadDetails,
     fetchLeads,
     Lead,
     sendEmailMock
 } from '../services/campaign-service/api';
+
+import { sendSequenceToInstantly } from '../services/campaign-service/api';
+
 
 export default function CampaignPage() {
     const [leads, setLeads] = useState<Lead[]>([]);
@@ -71,6 +74,28 @@ export default function CampaignPage() {
             [templateKey]: newText
         });
     };
+
+
+    const handlePushSequence = async () => {
+        if (!selectedLeadDetail || !selectedLeadId) return;
+
+        try {
+            alert("🚀 Pushing full sequence to Instantly...");
+
+            await sendSequenceToInstantly(selectedLeadId, {
+                email_1: selectedLeadDetail.email_1_body || "",
+                email_2: selectedLeadDetail.email_2_body || "",
+                email_3: selectedLeadDetail.email_3_body || ""
+            });
+
+            alert("✅ Lead & Sequence added successfully!");
+        } catch (error) {
+            console.error(error);
+            alert("❌ Failed to push sequence.");
+        }
+    };
+
+
 
     // --- ACTION: Send the specific email content to Backend ---
     const handleSend = async (templateId: number) => {
@@ -168,7 +193,8 @@ export default function CampaignPage() {
                                         <Clock className="w-4 h-4" />
                                         Automate (Cron)
                                     </button>
-                                    <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-lg text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all">
+                                    <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-lg text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all"
+                                        onClick={handlePushSequence}>
                                         <Send className="w-4 h-4" />
                                         Push to Instantly.ai
                                     </button>

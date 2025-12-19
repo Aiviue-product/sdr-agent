@@ -41,3 +41,24 @@ export const sendEmailMock = async (id: number, templateId: number, bodyContent:
     });
     return res.json();
 };
+
+
+
+
+
+// Add this interface
+interface SequencePayload {
+    email_1: string;
+    email_2: string;
+    email_3: string;
+}
+
+// Add this function
+export const sendSequenceToInstantly = async (id: number, payload: SequencePayload) => {
+    const res = await fetch(`${API_BASE_URL}/api/v1/leads/${id}/push-sequence`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    return res.json();
+};

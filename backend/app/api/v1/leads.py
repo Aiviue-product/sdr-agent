@@ -9,11 +9,16 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
-# --- REQUEST MODEL ---
-# This defines the JSON structure sent from the Frontend
+# --- REQUEST MODEL (For Single Email / Small Button) ---
 class SendEmailRequest(BaseModel):
     template_id: int
     email_body: str
+
+# --- NEW REQUEST MODEL (For Sequence / Purple Button) ---
+class SendSequenceRequest(BaseModel):
+    email_1: str
+    email_2: str
+    email_3: str
 
 # --- 1. GET ALL LEADS (Left Sidebar API) ---
 @router.get("/")
@@ -73,15 +78,15 @@ async def get_lead_details(lead_id: int, db: AsyncSession = Depends(get_db)):
 
     return lead
 
-# --- 3. SEND EMAIL (Integrated with Instantly.ai V2) ---
+# --- 3. SEND SINGLE EMAIL (Small Button) ---
 @router.post("/{lead_id}/send")
 async def send_email_to_provider(
     lead_id: int, 
-    request: SendEmailRequest, # Receives the JSON body (template_id, email_body)
+    request: SendEmailRequest, 
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Pushes the lead + custom message to Instantly.ai (API V2)
+    Pushes the lead + ONE specific message to Instantly.ai
     """
     # 1. Fetch Lead Data
     query = text("SELECT * FROM leads WHERE id = :id")
@@ -91,22 +96,64 @@ async def send_email_to_provider(
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
 
-    # 2. Convert to dict for the service
+    # 2. Convert to dict
     lead_data = dict(lead)
 
     # 3. Call Instantly Service (V2)
-    # We pass the 'email_body' that you edited on the frontend
     result = send_lead_to_instantly(lead_data, request.email_body)
 
     if "error" in result:
-        # Pass the specific Instantly error back to the frontend
         raise HTTPException(status_code=500, detail=result["error"])
 
-    # 4. Mark as Sent in DB
+    # 4. Mark as Sent
     await db.execute(
         text("UPDATE leads SET is_sent = TRUE, sent_at = NOW() WHERE id = :id"),
         {"id": lead_id}
     )
     await db.commit()
 
-    return {"message": "Lead pushed to Instantly V2", "details": result} 
+    return {"message": "Lead pushed to Instantly V2", "details": result}
+
+
+# --- 4. SEND SEQUENCE (Purple Button - NEW) ---
+@router.post("/{lead_id}/push-sequence")
+async def push_sequence_to_instantly(
+    lead_id: int, 
+    request: SendSequenceRequest, 
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Pushes Lead + ALL 3 Emails to Instantly.ai at once.
+    """
+    # 1. Fetch Lead Data
+    query = text("SELECT * FROM leads WHERE id = :id")
+    result = await db.execute(query, {"id": lead_id})
+    lead = result.mappings().first()
+
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    lead_data = dict(lead)
+
+    # 2. Prepare Dictionary Payload for Service
+    # This triggers the "dict" logic in your instantly_service.py
+    emails_payload = {
+        "email_1": request.email_1,
+        "email_2": request.email_2,
+        "email_3": request.email_3 
+    }
+
+    # 3. Call Service
+    result = send_lead_to_instantly(lead_data, emails_payload)
+
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+
+    # 4. Update DB status
+    await db.execute(
+        text("UPDATE leads SET is_sent = TRUE, sent_at = NOW() WHERE id = :id"),
+        {"id": lead_id}
+    )
+    await db.commit()
+
+    return {"message": "Sequence pushed successfully", "details": result} 
