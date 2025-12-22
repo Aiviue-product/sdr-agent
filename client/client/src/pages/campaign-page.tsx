@@ -9,6 +9,8 @@ import {
     Loader2,
     Mail,
     Send,
+    Sparkles,
+
     User
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -16,12 +18,13 @@ import { useEffect, useState } from 'react';
 import {
     fetchLeadDetails,
     fetchLeads,
-    Lead,
-    sendEmailMock
+    sendEmailMock,
+    sendSequenceToInstantly
 } from '../services/campaign-service/api';
 
-import { sendSequenceToInstantly } from '../services/campaign-service/api';
-
+import Link from 'next/link';
+import router from 'next/router';
+import { Lead } from "../types/types";
 
 export default function CampaignPage() {
     const [leads, setLeads] = useState<Lead[]>([]);
@@ -118,6 +121,12 @@ export default function CampaignPage() {
         }
     };
 
+    const handleMoveToEnrichment = () => {
+
+        // Redirects the user to the new Campaign Dashboard we created in Phase 3
+        router.push('/enrichment');
+    };
+
     return (
         <div className="flex h-screen bg-gray-50 font-sans">
 
@@ -189,10 +198,27 @@ export default function CampaignPage() {
                                 </div>
 
                                 <div className="flex gap-3">
+                                    {/* 1. Automate Button */}
                                     <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors">
                                         <Clock className="w-4 h-4" />
                                         Automate (Cron)
                                     </button>
+
+                                    {/* 2. NEW ENRICHMENT BUTTON */}
+
+                                    {/* <button className="flex items-center gap-2 px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 font-medium hover:bg-yellow-100 hover:border-yellow-300 transition-colors"
+                                        onClick={handleMoveToEnrichment}>
+                                        <Sparkles className="w-4 h-4 text-yellow-600" /> 
+                                        Go to Enrichment
+                                    </button> */}
+                                    <Link href="/enrichment">
+                                        <button className="flex items-center gap-2 px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 font-medium hover:bg-yellow-100 hover:border-yellow-300 transition-colors">
+                                            <Sparkles className="w-4 h-4 text-yellow-600" />
+                                            Go to Enrichment
+                                        </button>
+                                    </Link>
+
+                                    {/* 3. Push Button */}
                                     <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-lg text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all"
                                         onClick={handlePushSequence}>
                                         <Send className="w-4 h-4" />
@@ -274,4 +300,4 @@ function EmailCard({ title, body, onSend, color, onBodyChange }: any) {
             </div>
         </div>
     );
-} 
+}

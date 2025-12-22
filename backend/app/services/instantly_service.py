@@ -22,11 +22,11 @@ def send_lead_to_instantly(lead_data: dict, emails_payload: any):
 
     user_email = lead_data.get("email")
     if not user_email:
-        return {"error": "Lead has no email address."}
+        return {"error": "Lead has no email address."} 
 
     # 1. Map Variables
     custom_vars = {
-        "designation": lead_data.get("designation", ""), 
+        "designation": lead_data.get("designation", ""),  
         "sector": lead_data.get("sector", "")
     }
 
@@ -66,7 +66,7 @@ def send_lead_to_instantly(lead_data: dict, emails_payload: any):
     try:
         response = requests.post(INSTANTLY_API_URL, json=payload, headers=headers)
         
-        #  ADD THIS: Log the actual response
+        # Log the actual response
         logger.info(f" Response Status: {response.status_code}")
         logger.info(f" Response Body: {response.text}")
         
@@ -76,7 +76,7 @@ def send_lead_to_instantly(lead_data: dict, emails_payload: any):
 
         response_data = response.json()
         
-        #  ADD THIS: Check if lead was actually added
+        #  Check if lead was actually added
         if response_data:
             logger.info(f"Instantly Response Data: {json.dumps(response_data, indent=2)}")
         
