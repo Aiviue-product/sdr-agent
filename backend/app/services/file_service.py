@@ -29,7 +29,7 @@ async def process_excel_file(input_file_path: str, verification_mode: str) -> io
         'mobile':         'mobile_number', # Variation
         'company':        'company_name',  # Variation
         'linkedin':       'linkedin_url',  # Variation
-        
+        'phone':          'mobile_number', 
         # Ensure standard keys exist (redundant but safe)
         'priority':       'priority',
         'sector':         'sector',
