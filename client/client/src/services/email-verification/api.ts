@@ -25,8 +25,6 @@ export const verifyLeads = async (
             throw new Error(errorText || 'Verification failed');
         }
 
-        // Just return the blob. 
-        // The Page component will handle the download link.
         return await response.blob();
 
     } catch (error) {

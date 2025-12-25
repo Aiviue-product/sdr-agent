@@ -79,7 +79,8 @@ async def process_excel_file(input_file_path: str, verification_mode: str) -> io
         'sector':         'sector',
         'email':          'email',
         'status':         'status',
-        'tag':            'tag'      # Map 'Industry' to 'Sector'
+        'tag':            'tag' ,
+        'industry':       'sector'    
     }
 
     # Apply the renaming
