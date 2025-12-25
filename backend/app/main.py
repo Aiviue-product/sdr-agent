@@ -24,4 +24,4 @@ app.include_router(leads.router, prefix="/api/v1/leads", tags=["Leads & Campaign
 
 @app.get("/")
 def root():
-    return {"message": "Lead Verification Pro API is running"} 
+    return {"message": "Lead Verification Pro API is running"}  
