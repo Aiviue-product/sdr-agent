@@ -74,7 +74,6 @@ export default function CampaignPage() {
     };
 
     // --- HANDLE AI PERSONALIZATION ---
-    // This function now uses the "Smart Backend". 
     // If data exists, it won't re-scrape, it will just re-run AI (Fast Rewrite).
     const handleEnrichment = async () => {
         if (!selectedLeadId) return;
@@ -174,7 +173,7 @@ export default function CampaignPage() {
 
                                             {/* --- SIDEBAR: HIRING BADGE (ROCKET) --- */}
                                             {lead.hiring_signal && (
-                                                <Rocket className="w-4 h-4 text-green-600 fill-green-100" />
+                                                <Rocket className="w-4 mt-1 h-4 text-green-600 fill-green-100" />
                                             )}
                                         </h3>
 
