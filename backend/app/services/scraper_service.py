@@ -20,7 +20,7 @@ class LinkedInScraperService:
             return path_parts[-1]
         return "unknown"
 
-    async def scrape_posts(self, linkedin_url: str, total_posts: int = 3):
+    async def scrape_posts(self, linkedin_url: str, total_posts: int = 2):
         """
         Scrapes a single profile's posts using Apify.
         """
@@ -86,8 +86,9 @@ class LinkedInScraperService:
             
             # 4. Post Text
             # We limit text length to save LLM tokens, but keep enough for context
-            full_text = post.get("text", "")
-            short_text = full_text[:1000] if full_text else "" 
+            full_text = post.get("text", "") or "" 
+            short_text = full_text
+
 
             # 5. Build Clean Object
             item = {

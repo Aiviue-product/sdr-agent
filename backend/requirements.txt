@@ -9,3 +9,5 @@ python-dotenv
 sqlalchemy         
 asyncpg             
 psycopg2-binary
+apify-client
+google-genai 

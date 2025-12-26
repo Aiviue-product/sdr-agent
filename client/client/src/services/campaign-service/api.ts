@@ -10,6 +10,21 @@ export const fetchLeads = async (): Promise<Lead[]> => {
     return res.json();
 };
 
+export const enrichLead = async (id: number) => {
+    // Calls the endpoint: POST /api/v1/enrichment/{id}/enrich
+    const res = await fetch(`${API_BASE_URL}/api/v1/enrichment/${id}/enrich`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Enrichment failed');
+    }
+
+    return res.json();
+};
+
 // 2. NEW: Fetch Enrichment Leads (Missing Data)
 export const fetchEnrichmentLeads = async (): Promise<Lead[]> => {
     const res = await fetch(`${API_BASE_URL}/api/v1/leads/enrichment`);
