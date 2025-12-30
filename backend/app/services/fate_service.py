@@ -1,7 +1,7 @@
 import logging
 from sqlalchemy import text
 from app.db.session import AsyncSessionLocal
-from app.core.templates import EMAIL_TEMPLATES 
+from app.core.templates import EMAIL_TEMPLATES  
 
 logger = logging.getLogger("fate_service")
 
@@ -47,7 +47,7 @@ class FateEmailGenerator:
         # 1. Get AI Variables
         ai_vars = lead_data.get("ai_variables") or {}
         
-        # 2. DETERMINE THE OPENING LINE (The Logic Fix)
+        # 2. DETERMINE THE OPENING LINE
         # Check if we have a personalized intro saved
         intro_hook = lead_data.get("personalized_intro")
         company = lead_data.get("company_name", "your company")
@@ -81,7 +81,7 @@ class FateEmailGenerator:
             "pain_points": ai_vars.get("pain_points", fate_rule.f_pain)
         }
 
-        # 4. Generate the 3 variations
+        # 4. Generate the 3 variations (Subject + Body)
         generated = {}
         
         # Template 1: Pain Led (Uses {opening_line})
@@ -110,6 +110,10 @@ class FateEmailGenerator:
 async def generate_emails_for_lead(lead_id: int):
     """
     Orchestrator function.
+    1. Fetch Lead
+    2. Find Rule
+    3. Generate Emails (Subject + Body)
+    4. Save BOTH to DB
     """
     async with AsyncSessionLocal() as session:
         # A. Fetch Lead
@@ -128,27 +132,31 @@ async def generate_emails_for_lead(lead_id: int):
             return {"error": f"No FATE rule found for Sector: {lead.sector}"}
 
         # C. Generate Content
-        # We pass the full lead dict (which has 'personalized_intro') into fill_templates
-        # The logic for placing the hook is now handled INSIDE fill_templates
         emails = generator.fill_templates(dict(lead), fate_rule)
 
-        # D. Save to DB
+        # D. Save to DB (UPDATED: Saves Subjects AND Bodies)
         update_query = text("""
             UPDATE leads 
             SET 
-                email_1_body = :e1_body,
-                email_2_body = :e2_body,
-                email_3_body = :e3_body,
+                email_1_subject = :s1, 
+                email_1_body = :b1,
+                email_2_subject = :s2, 
+                email_2_body = :b2,
+                email_3_subject = :s3, 
+                email_3_body = :b3,
                 updated_at = NOW()
             WHERE id = :id
         """)
         
         await session.execute(update_query, {
-            "e1_body": emails["email_1"]["body"],
-            "e2_body": emails["email_2"]["body"],
-            "e3_body": emails["email_3"]["body"],
+            "s1": emails["email_1"]["subject"], 
+            "b1": emails["email_1"]["body"],
+            "s2": emails["email_2"]["subject"], 
+            "b2": emails["email_2"]["body"],
+            "s3": emails["email_3"]["subject"], 
+            "b3": emails["email_3"]["body"],
             "id": lead_id
         })
         await session.commit()
         
-        return {"success": True, "emails": emails}  
+        return {"success": True, "emails": emails}

@@ -85,14 +85,14 @@ export const LeadVerificationPage = () => {
                 {/* Right Side: Navigation Buttons */}
                 <div className="flex items-center gap-3">
                     <Link href="/masterleads">
-                        <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-stone-700 hover:text-purple-600 hover:bg-gray-50 rounded-lg transition-colors">
+                        <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-stone-700 hover:text-purple-600 hover:bg-white rounded-lg transition-colors">
                             <LayoutDashboard className="w-4 h-4" />
                             Master Leads
                         </button>
                     </Link>
 
                     <Link href="/campaign">
-                        <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-stone-700 hover:text-indigo-600 hover:bg-gray-50 rounded-lg transition-colors">
+                        <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-stone-700 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
                             <Megaphone className="w-4 h-4" />
                             Campaigns
                         </button>

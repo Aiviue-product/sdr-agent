@@ -74,7 +74,7 @@ export default function CampaignPage() {
         }
     };
 
-    // --- HANDLE AI PERSONALIZATION ---
+    // --- AI PERSONALIZATION ---
     // If data exists, it won't re-scrape, it will just re-run AI (Fast Rewrite).
     const handleEnrichment = async () => {
         if (!selectedLeadId) return;
@@ -100,11 +100,12 @@ export default function CampaignPage() {
         }
     };
 
-    const updateLocalEmailBody = (templateKey: 'email_1_body' | 'email_2_body' | 'email_3_body', newText: string) => {
+    // Helper to update any email field (Subject or Body) in local state
+    const updateLocalEmailField = (key: keyof Lead, newText: string) => {
         if (!selectedLeadDetail) return;
         setSelectedLeadDetail({
             ...selectedLeadDetail,
-            [templateKey]: newText
+            [key]: newText
         });
     };
 
@@ -112,11 +113,19 @@ export default function CampaignPage() {
         if (!selectedLeadDetail || !selectedLeadId) return;
         try {
             alert("🚀 Pushing full sequence to Instantly...");
+
+            // We verify if types allow extra fields, otherwise cast to any
+            // Ensure your backend receives these 'email_x_subject' fields
             await sendSequenceToInstantly(selectedLeadId, {
                 email_1: selectedLeadDetail.email_1_body || "",
                 email_2: selectedLeadDetail.email_2_body || "",
-                email_3: selectedLeadDetail.email_3_body || ""
-            });
+                email_3: selectedLeadDetail.email_3_body || "",
+                // Sending Subjects as well (ensure backend maps these to subject_1, etc.)
+                email_1_subject: selectedLeadDetail.email_1_subject || "",
+                email_2_subject: selectedLeadDetail.email_2_subject || "",
+                email_3_subject: selectedLeadDetail.email_3_subject || ""
+            } as any);
+
             alert("✅ Lead & Sequence added successfully!");
         } catch (error) {
             console.error(error);
@@ -127,6 +136,8 @@ export default function CampaignPage() {
     const handleSend = async (templateId: number) => {
         if (!selectedLeadDetail || !selectedLeadId) return;
         let finalBody = "";
+        // Note: For single send, you might want to pass subject too, 
+        // but typically sendEmailMock uses just body for preview.
         if (templateId === 1) finalBody = selectedLeadDetail.email_1_body || "";
         if (templateId === 2) finalBody = selectedLeadDetail.email_2_body || "";
         if (templateId === 3) finalBody = selectedLeadDetail.email_3_body || "";
@@ -150,8 +161,8 @@ export default function CampaignPage() {
                     <Link href="/" className="text-gray-500 hover:text-gray-800 flex items-center gap-1 mb-3 text-xs font-bold transition-colors">
                         <ArrowLeft className="w-3 h-3" /> Back to Home
                     </Link>
-                    <h1 className="text-xl font-bold text-gray-800 bg-violet-200  flex  items-center gap-2">
-                        <User className="w-5 h-5 text-indigo-700 rounded-lg" />
+                    <h1 className="text-xl font-bold text-gray-800 bg-violet-200  flex  items-center gap-2 p-1 rounded">
+                        <User className="w-5 h-5 text-indigo-700" />
                         Verified Leads
                     </h1>
                     <p className="text-sm text-stone-800 mt-1">{leads.length} potential candidates ready</p>
@@ -285,8 +296,10 @@ export default function CampaignPage() {
                                 {/* Template 1 - HAS REWRITE BUTTON */}
                                 <EmailCard
                                     title="Email 1: Pain-Led Intro"
+                                    subject={selectedLeadDetail.email_1_subject}
                                     body={selectedLeadDetail.email_1_body}
-                                    onBodyChange={(text: string) => updateLocalEmailBody('email_1_body', text)}
+                                    onSubjectChange={(text: string) => updateLocalEmailField('email_1_subject', text)}
+                                    onBodyChange={(text: string) => updateLocalEmailField('email_1_body', text)}
                                     onSend={() => handleSend(1)}
                                     color="blue"
                                     // Pass handleEnrichment here to enable the rewrite button
@@ -296,8 +309,10 @@ export default function CampaignPage() {
                                 {/* Template 2 */}
                                 <EmailCard
                                     title="Email 2: Case Reinforcement"
+                                    subject={selectedLeadDetail.email_2_subject}
                                     body={selectedLeadDetail.email_2_body}
-                                    onBodyChange={(text: string) => updateLocalEmailBody('email_2_body', text)}
+                                    onSubjectChange={(text: string) => updateLocalEmailField('email_2_subject', text)}
+                                    onBodyChange={(text: string) => updateLocalEmailField('email_2_body', text)}
                                     onSend={() => handleSend(2)}
                                     color="purple"
                                 />
@@ -305,8 +320,10 @@ export default function CampaignPage() {
                                 {/* Template 3 */}
                                 <EmailCard
                                     title="Email 3: Direct Ask"
+                                    subject={selectedLeadDetail.email_3_subject}
                                     body={selectedLeadDetail.email_3_body}
-                                    onBodyChange={(text: string) => updateLocalEmailBody('email_3_body', text)}
+                                    onSubjectChange={(text: string) => updateLocalEmailField('email_3_subject', text)}
+                                    onBodyChange={(text: string) => updateLocalEmailField('email_3_body', text)}
                                     onSend={() => handleSend(3)}
                                     color="orange"
                                 />
@@ -321,7 +338,7 @@ export default function CampaignPage() {
 }
 
 // --- SUB COMPONENT FOR EMAIL CARD (EDITABLE) ---
-function EmailCard({ title, body, onSend, color, onBodyChange, onRegenerate }: any) {
+function EmailCard({ title, subject, body, onSend, color, onSubjectChange, onBodyChange, onRegenerate }: any) {
     const colors: any = {
         blue: "border-l-blue-500",
         purple: "border-l-purple-500",
@@ -330,34 +347,51 @@ function EmailCard({ title, body, onSend, color, onBodyChange, onRegenerate }: a
 
     return (
         <div className={`bg-white rounded-xl shadow-sm border border-gray-200 border-l-4 ${colors[color]} overflow-hidden`}>
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                <h4 className="font-semibold text-gray-700 flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-gray-400" />
-                    {title}
-                </h4>
+            {/* Card Header & Controls */}
+            <div className="p-4 border-b border-gray-100 flex flex-col gap-3 bg-gray-50">
 
-                <div className="flex gap-3">
-                    {/* NEW BUTTON: REGENERATE (Only shown if onRegenerate is passed) */}
-                    {onRegenerate && (
+                {/* Top Row: Title & Buttons */}
+                <div className="flex justify-between items-center">
+                    <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        {title}
+                    </h4>
+
+                    <div className="flex gap-3">
+                        {/* REGENERATE (Only shown if onRegenerate is passed) */}
+                        {onRegenerate && (
+                            <button
+                                onClick={onRegenerate}
+                                className="flex items-center gap-1 bg-amber-100 text-xs font-medium text-orange-600 hover:text-orange-800 hover:bg-orange-50 px-2 py-1 rounded transition-colors"
+                                title="Rewrite the AI Hook using saved data"
+                            >
+                                <Sparkles className="w-3 h-3" />
+                                Update Personalization
+                            </button>
+                        )}
+
                         <button
-                            onClick={onRegenerate}
-                            className="flex items-center gap-1 bg-amber-100 text-xs font-medium text-orange-600 hover:text-orange-800 hover:bg-orange-50 px-2 py-1 rounded transition-colors"
-                            title="Rewrite the AI Hook using saved data"
+                            onClick={onSend}
+                            className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
                         >
-                            <Sparkles className="w-3 h-3" />
-                            Update Personalization
+                            <Send className="w-3 h-3" />
+                            Send Now
                         </button>
-                    )}
+                    </div>
+                </div>
 
-                    <button
-                        onClick={onSend}
-                        className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
-                    >
-                        <Send className="w-3 h-3" />
-                        Send Now
-                    </button>
+                {/* Subject Line Input Row */}
+                <div className="flex items-center gap-2 bg-indigo-50 px-3 py-2 rounded border border-gray-200 shadow-sm">
+                    <span className="text-gray-400 text-xs font-bold uppercase tracking-wide">Subject:</span>
+                    <input
+                        className="flex-1 text-sm font-medium text-gray-800 outline-none placeholder:text-gray-300"
+                        value={subject || ""}
+                        onChange={(e) => onSubjectChange(e.target.value)}
+                        placeholder="Subject line will appear here..."
+                    />
                 </div>
             </div>
+
             <div className="p-0">
                 <textarea
                     className="w-full h-64 p-6 text-gray-600 text-sm leading-relaxed font-mono border-none focus:ring-2 focus:ring-inset focus:ring-indigo-100 resize-none outline-none"

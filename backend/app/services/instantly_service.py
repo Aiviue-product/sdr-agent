@@ -1,4 +1,3 @@
-
 import os
 import requests
 import logging
@@ -32,9 +31,16 @@ def send_lead_to_instantly(lead_data: dict, emails_payload: any):
 
     if isinstance(emails_payload, dict):
         # Sequence Mode (Purple Button)
+        # We map BODIES to custom_message_X
         custom_vars["custom_message_1"] = emails_payload.get("email_1", "")
         custom_vars["custom_message_2"] = emails_payload.get("email_2", "")
         custom_vars["custom_message_3"] = emails_payload.get("email_3", "")
+        
+        # We map SUBJECTS to subject_X
+        custom_vars["subject_1"] = emails_payload.get("email_1_subject", "")
+        custom_vars["subject_2"] = emails_payload.get("email_2_subject", "")
+        custom_vars["subject_3"] = emails_payload.get("email_3_subject", "")
+        
         personalization_value = emails_payload.get("email_1", "")
     else:
         # Single Send Mode (Small Button)

@@ -151,7 +151,10 @@ async def push_sequence_to_instantly(
     emails_payload = {
         "email_1": request.email_1,
         "email_2": request.email_2,
-        "email_3": request.email_3 
+        "email_3": request.email_3,
+        "email_1_subject": request.email_1_subject,
+        "email_2_subject": request.email_2_subject,
+        "email_3_subject": request.email_3_subject 
     }
 
     result = send_lead_to_instantly(lead_data, emails_payload)

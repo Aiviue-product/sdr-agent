@@ -1,4 +1,4 @@
-# The "Brain" of your email structure.
+# email structure. 
 
 EMAIL_TEMPLATES = {
     "pain_led": {

@@ -48,7 +48,7 @@ export default function MasterLeadsPage() {
         <div className="min-h-screen bg-slate-50 font-sans">
 
             {/* --- TOP NAVIGATION BAR --- */}
-            <div className="bg-violet-200 border-b border-slate-200 px-8 py-4 flex justify-between items-center sticky top-0 z-10">
+            <div className="bg-purple-200 border-b border-slate-200 px-8 py-4 flex justify-between items-center sticky top-0 z-10">
                 <div className="flex items-center gap-6">
                     <Link href="/" className="text-slate-500 hover:text-slate-800 transition-colors">
                         <ArrowLeft className="w-5 h-5" />
