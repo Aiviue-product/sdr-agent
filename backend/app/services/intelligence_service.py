@@ -39,14 +39,21 @@ class IntelligenceService:
 
         JSON KEYS TO EXTRACT:
         1. "hiring_signal" (Boolean): 
-           - True if they mention hiring, 'join our team', 'growing', or specific open roles or any other relevant signal to hiring.
+           - True ONLY if THE COMPANY/ORGANIZATION is ACTIVELY SEEKING to hire new employees.
+           - Look for phrases like: "we're hiring", "join our team", "open positions", "looking for candidates", "expanding our team", "recruiting for".
+           - If "hiring" is mentioned as a product/service description (e.g., "we are a hiring platform")
+           IMPORTANT - Return FALSE in these cases:
+           - If the AUTHOR is announcing THEY GOT HIRED or JOINED a company (e.g., "I've joined XYZ as an intern")
+           - If the post is about the author's job search journey or interview experiences
+           - If there's no clear indication the company has open roles RIGHT NOW
         
         2. "hiring_roles" (String): 
-           - Comma-separated roles they are looking for. 
+           - Comma-separated roles THE COMPANY is actively looking to fill.
+           - Only populate if hiring_signal is True.
            - If Tech: "React Dev, DevOps"
            - If Retail/Ops: "Store Managers, Delivery Riders, Area Sales Manager"
            - If Finance: "Accountants, Branch Managers"
-           - If None: Return empty string "".
+           - If hiring_signal is False: Return empty string "".
 
         3. "key_competencies" (String): 
            - List the hard skills, tools, or methodologies they value or mention.
