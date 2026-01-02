@@ -12,7 +12,7 @@ router = APIRouter()
 @router.post("/{lead_id}/enrich")
 async def perform_enrichment(
     lead_id: int, 
-    force_scrape: bool = Query(False), # New Flag to force fresh data if needed
+    force_scrape: bool = Query(False), # Flag to force fresh data if needed
     db: AsyncSession = Depends(get_db)
 ):
     """
