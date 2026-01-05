@@ -79,7 +79,8 @@ async def process_excel_file(input_file_path: str, verification_mode: str) -> io
         'sector':         'sector',
         'email':          'email',
         'status':         'status',
-        'tag':            'tag'      # Map 'Industry' to 'Sector'
+        'tag':            'tag' ,
+        'industry':       'sector'    
     }
 
     # Apply the renaming
@@ -124,7 +125,7 @@ async def _process_bulk_logic(df):
         rows_to_process = df[mask]
         logger.info(f"🔍 Bulk Filter: Found {len(rows_to_process)} 'top' rows out of {len(df)} total.")
     else:
-        logger.warning("⚠️ No 'priority' column found. Processing ALL rows.")
+        logger.warning("⚠️ No 'priority' column found. Processing ALL rows.") 
         rows_to_process = df
         mask = None
 
@@ -184,24 +185,20 @@ async def _process_bulk_logic(df):
 
 async def _process_individual_logic(df):
     """
-    Process row-by-row with STRICT input cleaning and status handling. 
-    Matches the logic structure of _process_bulk_logic exactly.
+    Process row-by-row with STRICT input cleaning.
+    Fix: Forcefully overwrites status for non-top rows to match Bulk strictness.
     """
     
     # 1. STRICT PRIORITY FILTERING (Global Clean)
-    # We clean the whole column once, just like in Bulk logic
     if 'priority' in df.columns:
         df['priority'] = df['priority'].astype(str).str.lower().str.strip()
     else:
-        logger.warning("⚠️ Individual Logic: 'priority' column missing. Will default to processing ALL or handling logic.")
+        logger.warning("⚠️ Individual Logic: 'priority' column missing.")
 
     # 2. Iterate Row-by-Row
     for index, row in df.iterrows():
         
-        # Get cleaned priority (defaults to empty string if missing)
         priority = row.get('priority', '')
-        
-        # Get and clean email
         email_raw = str(row.get('email', ''))
         email = email_raw.lower().strip()
 
@@ -213,19 +210,15 @@ async def _process_individual_logic(df):
         if priority == 'top':
             try:
                 # Call Individual API
-                # NOTE: Assuming verify_individual returns a tuple or just the raw_status. 
-                # We need the RAW status (e.g., 'valid', 'catch-all') to run the logic below.
-                # If verify_individual returns (status, tag), take index [0] as raw_status.
-                
                 raw_response = verify_individual(email) 
                 
-                # Handle if function returns tuple (status, tag) or just status
+                # Normalize Response (Handle tuple or string)
                 if isinstance(raw_response, (tuple, list)):
                     raw_status = str(raw_response[0]).lower().strip()
                 else:
                     raw_status = str(raw_response).lower().strip()
 
-                # --- STRICT STATUS LOGIC (COPIED FROM BULK) ---
+                # --- STRICT STATUS LOGIC (Matches Bulk) ---
                 if raw_status == 'valid':
                     df.at[index, 'status'] = 'valid'
                     df.at[index, 'tag'] = 'Verified'
@@ -239,24 +232,20 @@ async def _process_individual_logic(df):
                     df.at[index, 'tag'] = 'Do Not Mail'
                 
                 else:
-                    # Default for 'invalid', 'unknown', or unexpected responses
                     df.at[index, 'status'] = 'invalid'
                     df.at[index, 'tag'] = 'Review Required'
                 
-                # Rate limit protection (Crucial for individual loops)
+                # Rate limit protection
                 time.sleep(1) 
 
             except Exception as e:
-                # Handle API Errors exactly like 'api_failed' in bulk
                 logger.error(f"❌ Individual API Error for {email}: {str(e)}")
                 df.at[index, 'status'] = 'api_error'
                 df.at[index, 'tag'] = 'Check API Key/Credits'
 
         else:
-            # 4. Handle Skipped Rows (Low/Medium/Empty)
-            # Only mark as skipped if it wasn't already processed
-            current_status = df.at[index, 'status']
-            
-            if pd.isna(current_status) or current_status == 'unverified':
-                df.at[index, 'status'] = 'skipped_low_priority'
-                df.at[index, 'tag'] = 'Review Required'
+            # 4. STRICT SKIP LOGIC (The Fix)
+            # We do NOT check "if current_status == unverified". 
+            # We BLINDLY overwrite to ensure non-top rows are never accidentally saved as valid.
+            df.at[index, 'status'] = 'skipped_low_priority'
+            df.at[index, 'tag'] = 'Review Required' 
