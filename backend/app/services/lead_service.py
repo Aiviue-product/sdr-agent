@@ -70,7 +70,7 @@ async def save_verified_leads_to_db(df):
             "priority": priority,
             "verification_status": status,
             "verification_tag": tag,
-            "lead_stage": lead_stage # <--- New Field
+            "lead_stage": lead_stage 
         })
 
     if not leads_to_save:

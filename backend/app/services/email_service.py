@@ -36,7 +36,7 @@ def verify_individual(email: str) -> tuple[str, str]:
         if 'status' in data:
             zb_status = data['status'].lower()
             
-            # --- STRICT LOGIC FIX ---
+            # --- STRICT LOGIC ---
             if zb_status == 'valid':
                 return 'valid', 'Verified'
             else:

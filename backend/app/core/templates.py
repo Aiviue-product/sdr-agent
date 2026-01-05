@@ -17,9 +17,9 @@ Proof: {e_evidence}.
 Open to a quick chat to see if this fits?
 
 Best Regards,
-Sudev Das (CEO & Founder)
-Aiviue
-https://www.aiviue.com
+Sudev Das (CEO & Founder),
+Aiviue.
+(https://www.aiviue.com)
 """
     },
     
@@ -36,9 +36,9 @@ Recent example: {e_evidence}.
 Are you active on the hiring front currently?
 
 Best Regards,
-Sudev Das (CEO & Founder)
-Aiviue
-https://www.aiviue.com
+Sudev Das (CEO & Founder),
+Aiviue.
+(https://www.aiviue.com)
 """
     },
     
@@ -54,9 +54,9 @@ We support {sector} teams specifically with {t_solution}, especially when urgenc
 Should we reconnect on this or close the loop?
 
 Best Regards,
-Sudev Das (CEO & Founder)
-Aiviue
-https://www.aiviue.com
+Sudev Das (CEO & Founder),
+Aiviue.
+(https://www.aiviue.com) 
 """
     }
 }

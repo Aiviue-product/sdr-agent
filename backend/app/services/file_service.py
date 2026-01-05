@@ -80,7 +80,7 @@ async def process_excel_file(input_file_path: str, verification_mode: str) -> io
         'email':          'email',
         'status':         'status',
         'tag':            'tag' ,
-        'industry':       'sector'    
+        'industry':       'sector'   
     }
 
     # Apply the renaming
