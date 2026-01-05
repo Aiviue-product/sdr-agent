@@ -269,4 +269,4 @@ export const LeadVerificationPage = () => {
     );
 };
 
-export default LeadVerificationPage; 
+export default LeadVerificationPage;  
