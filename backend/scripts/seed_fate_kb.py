@@ -91,8 +91,26 @@ KB_DATA = [
         "t_solution": "Distributed sourcing", 
         "e_evidence": "100+ hires supported",
         "urgency_level": "High"
+    },
+    {
+        "sector": "Car Dealerships", 
+        "designation_role": "HR Manager",
+        "f_pain": "High turnover in sales staff and difficulty retaining top performers", 
+        "a_goal": "Build a stable team that hits monthly sales targets", 
+        "t_solution": "AI-powered candidate screening and retention analytics", 
+        "e_evidence": "Reduced turnover by 40% at similar dealerships",
+        "urgency_level": "High"
+    },
+    {
+        "sector": "Car Dealerships", 
+        "designation_role": "HR / TA",
+        "f_pain": "Slow hiring for showroom and service roles", 
+        "a_goal": "Quick access to qualified sales and service staff", 
+        "t_solution": "Curated sourcing for dealership roles", 
+        "e_evidence": "15 hires in 1 week for multi-location dealer",
+        "urgency_level": "Very High"
     }
-]
+] 
 
 async def seed_kb():
     if not DATABASE_URL:
