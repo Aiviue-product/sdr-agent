@@ -47,18 +47,13 @@ async def save_verified_leads_to_db(df):
         priority = clean(row.get('priority'))
         tag = str(row.get('tag', ''))
 
-        # 4. DETERMINE LEAD STAGE (The New Logic)
-        # Check if critical fields are missing
-        # You can adjust this list based on what you consider "Campaign Ready"
-        required_for_campaign = [company, linkedin, mobile, designation, sector]
-        
-        if any(field is None for field in required_for_campaign):
-            lead_stage = 'enrichment'  # Valid email, but missing details
-        else:
-            lead_stage = 'campaign'    # Ready for outreach
+        # 4. DETERMINE LEAD STAGE (Updated Logic)
+        # All verified email leads go to campaign - missing fields don't block them
+        # The Enrichment page will separately show leads with missing data
+        lead_stage = 'campaign'  # Valid email = Campaign ready
 
         # 5. Prepare Record
-        leads_to_save.append({
+        leads_to_save.append({  
             "email": email,
             "first_name": first_name,
             "last_name": clean(row.get('lastname')),

@@ -1,10 +1,10 @@
-import { Lead, SequencePayload } from "../../types/types";
+import { CampaignLeadsResponse, Lead, SequencePayload } from "../../types/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
-// 1. Fetch Campaign Leads (Ready for Outreach)
-export const fetchLeads = async (): Promise<Lead[]> => {
-    // Calls the default "/" endpoint which now filters by lead_stage='campaign'
+// 1. Fetch Campaign Leads (All Verified Leads)
+export const fetchLeads = async (): Promise<CampaignLeadsResponse> => {
+    // Calls the default "/" endpoint which returns all verified leads + incomplete count
     const res = await fetch(`${API_BASE_URL}/api/v1/leads/`);
     if (!res.ok) throw new Error('Failed to fetch leads');
     return res.json();

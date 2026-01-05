@@ -10,7 +10,7 @@ from app.models.email import SendEmailRequest, SendSequenceRequest
 
 router = APIRouter()
 
-# --- 1. GET CAMPAIGN LEADS (Main List - Campaign Ready) ---
+# --- 1. GET CAMPAIGN LEADS (All Verified Leads) ---
 @router.get("/")
 async def get_campaign_leads(
     sector: Optional[str] = None,
@@ -19,18 +19,17 @@ async def get_campaign_leads(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Fetch ONLY fully populated leads (lead_stage = 'campaign').
-    These are the ones ready for outreach.
+    Fetch ALL verified leads (verification_status = 'valid').
+    Also returns count of leads with missing data for frontend alert.
     """
-    # Filter by lead_stage = 'campaign'
-    # UPDATED: Added hiring_signal, enrichment_status, and ai_variables to the selection
+    # Main query - get all verified leads
     query_str = """
         SELECT 
             id, first_name, last_name, company_name, designation, sector, email, 
             verification_status, lead_stage,
             hiring_signal, enrichment_status, ai_variables
         FROM leads 
-        WHERE lead_stage = 'campaign'
+        WHERE verification_status = 'valid'
     """
     params = {"limit": limit, "offset": skip}
 
@@ -43,9 +42,23 @@ async def get_campaign_leads(
     result = await db.execute(text(query_str), params)
     leads = result.mappings().all() 
     
-    return leads 
+    # Count leads with missing data (for frontend alert)
+    count_query = """
+        SELECT COUNT(*) as incomplete_count
+        FROM leads 
+        WHERE verification_status = 'valid'
+        AND (company_name IS NULL OR linkedin_url IS NULL OR mobile_number IS NULL 
+             OR designation IS NULL OR sector IS NULL)
+    """
+    count_result = await db.execute(text(count_query))
+    incomplete_count = count_result.scalar() or 0
+    
+    return {
+        "leads": list(leads),
+        "incomplete_leads_count": incomplete_count
+    } 
 
-# --- 2. GET ENRICHMENT LEADS (New Page - Missing Data) --- 
+# --- 2. GET ENRICHMENT LEADS (Leads with Missing Data) --- 
 @router.get("/enrichment")
 async def get_enrichment_leads(
     sector: Optional[str] = None,
@@ -54,14 +67,16 @@ async def get_enrichment_leads(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Fetch ONLY leads that need more info (lead_stage = 'enrichment').
-    These have valid emails but missing Mobile/LinkedIn/Company.
+    Fetch leads that have valid email but are missing some data.
+    These have valid emails but missing Mobile/LinkedIn/Company/Designation/Sector.
     """
-    # Filter by lead_stage = 'enrichment'
+    # Filter by verified status AND any missing field
     query_str = """
         SELECT id, first_name, last_name, company_name, designation, sector, email, mobile_number, linkedin_url, lead_stage 
         FROM leads 
-        WHERE lead_stage = 'enrichment'
+        WHERE verification_status = 'valid'
+        AND (company_name IS NULL OR linkedin_url IS NULL OR mobile_number IS NULL 
+             OR designation IS NULL OR sector IS NULL)
     """
     params = {"limit": limit, "offset": skip}
 
@@ -106,7 +121,7 @@ async def get_lead_details(lead_id: int, db: AsyncSession = Depends(get_db)):
     return lead
 
 # --- 4. SEND SINGLE EMAIL (Small Button) ---
-@router.post("/{lead_id}/send")
+@router.post("/{lead_id}/send") 
 async def send_email_to_provider(
     lead_id: int, 
     request: SendEmailRequest, 

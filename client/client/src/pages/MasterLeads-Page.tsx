@@ -35,7 +35,7 @@ export default function MasterLeadsPage() {
                 fetchEnrichmentLeads()    // Your missing data leads
             ]);
 
-            setVerifiedLeads(verifiedData);
+            setVerifiedLeads(verifiedData.leads);
             setEnrichmentLeads(enrichmentData);
         } catch (error) {
             console.error("Failed to load master data", error);
