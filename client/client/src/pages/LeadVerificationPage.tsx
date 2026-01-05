@@ -267,4 +267,6 @@ export const LeadVerificationPage = () => {
             </div>
         </div>
     );
-}; 
+};
+
+export default LeadVerificationPage; 
