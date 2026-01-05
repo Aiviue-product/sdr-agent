@@ -77,7 +77,7 @@ git --version
 cd /d/your-projects-folder
 
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/sdr-agent.git
+git clone https://github.com/Aiviue-product/sdr-agent.git
 
 # Navigate into the project
 cd sdr-agent
@@ -89,7 +89,7 @@ cd sdr-agent
 cd D:\your-projects-folder
 
 :: Clone the repository
-git clone https://github.com/YOUR_USERNAME/sdr-agent.git
+git clone https://github.com/Aiviue-product/sdr-agent.git
 
 :: Navigate into the project
 cd sdr-agent
@@ -101,7 +101,7 @@ cd sdr-agent
 cd D:\your-projects-folder
 
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/sdr-agent.git
+git clone https://github.com/Aiviue-product/sdr-agent.git
 
 # Navigate into the project
 cd sdr-agent
@@ -503,7 +503,7 @@ CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
 
 If you encounter any issues not covered here:
 
-1. Check the existing [Issues](../../issues) on GitHub
+1. Check the existing [Issues](https://github.com/Aiviue-product/sdr-agent/issues) on GitHub
 2. Create a new issue with:
    - Your operating system
    - Python and Node.js versions
@@ -515,3 +515,4 @@ If you encounter any issues not covered here:
 ## 🎉 You're All Set!
 
 Once both servers are running, you can start using the SDR Agent application. Happy coding! 🚀
+ 
