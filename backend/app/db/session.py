@@ -17,7 +17,6 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL is required")
 
 # Create Async Engine
-# pool_pre_ping=True checks connections before using them (prevents stale connection errors)
 engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
 
 # Session Factory

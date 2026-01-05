@@ -80,7 +80,7 @@ cd /d/your-projects-folder
 git clone https://github.com/Aiviue-product/sdr-agent.git
 
 # Navigate into the project
-cd sdr-agent
+cd sdr-code
 ```
 
 ### Using Windows Command Prompt (CMD)
