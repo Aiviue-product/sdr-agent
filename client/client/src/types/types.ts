@@ -36,6 +36,12 @@ export interface Lead {
     };
 }
 
+export interface CampaignLeadsResponse {
+    leads: Lead[];
+    incomplete_leads_count: number;
+}
+
+
 export interface SequencePayload {
     email_1: string;
     email_2: string;
