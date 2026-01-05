@@ -10,4 +10,7 @@ class SendEmailRequest(BaseModel):
 class SendSequenceRequest(BaseModel):
     email_1: str
     email_2: str
-    email_3: str 
+    email_3: str
+    email_1_subject: Optional[str] = None
+    email_2_subject: Optional[str] = None
+    email_3_subject: Optional[str] = None

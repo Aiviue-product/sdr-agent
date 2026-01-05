@@ -18,8 +18,11 @@ export interface Lead {
     verification_status: string;
 
     // Generated Emails
+    email_1_subject?: string; // New
     email_1_body?: string;
+    email_2_subject?: string; // New
     email_2_body?: string;
+    email_3_subject?: string; // New
     email_3_body?: string;
 
     // --- NEW AI FIELDS ---
@@ -37,4 +40,7 @@ export interface SequencePayload {
     email_1: string;
     email_2: string;
     email_3: string;
+    email_1_subject?: string;
+    email_2_subject?: string;
+    email_3_subject?: string;
 }

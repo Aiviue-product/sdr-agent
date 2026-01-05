@@ -47,8 +47,8 @@ export default function EnrichmentPage() {
             <div className="max-w-6xl mx-auto mb-8 flex justify-between items-center">
                 <div>
                     {/* --- CHANGED HREF FROM "/" TO "/campaign" --- */}
-                    <Link href="/campaign" className="text-gray-500 hover:text-gray-800 flex items-center gap-1 mb-2 text-sm font-medium transition-colors">
-                        <ArrowLeft className="w-4 h-4" /> Back to Campaigns
+                    <Link href="/" className="text-gray-500 hover:text-gray-800 flex items-center gap-1 mb-2 text-sm font-medium transition-colors">
+                        <ArrowLeft className="w-4 h-4" /> Back to Home
                     </Link>
 
                     <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
