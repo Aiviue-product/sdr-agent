@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import {
@@ -45,9 +46,11 @@ export default function EnrichmentPage() {
             {/* Header */}
             <div className="max-w-6xl mx-auto mb-8 flex justify-between items-center">
                 <div>
-                    <Link href="/" className="text-gray-500 hover:text-gray-800 flex items-center gap-1 mb-2 text-sm font-medium transition-colors">
+                    {/* --- CHANGED HREF FROM "/" TO "/campaign" --- */}
+                    <Link href="/campaign" className="text-gray-500 hover:text-gray-800 flex items-center gap-1 mb-2 text-sm font-medium transition-colors">
                         <ArrowLeft className="w-4 h-4" /> Back to Campaigns
                     </Link>
+
                     <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
                         <Sparkles className="w-6 h-6 text-yellow-500" />
                         Enrichment Pool

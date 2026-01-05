@@ -2,28 +2,29 @@
 'use client';
 
 import {
+    BrainCircuit,
     Briefcase,
     CheckCircle2,
     ChevronRight,
     Clock,
     Loader2,
     Mail,
+    Rocket,
     Send,
     Sparkles,
-
     User
 } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import {
+    enrichLead,
     fetchLeadDetails,
     fetchLeads,
     sendEmailMock,
     sendSequenceToInstantly
 } from '../services/campaign-service/api';
 
-import Link from 'next/link';
-import router from 'next/router';
 import { Lead } from "../types/types";
 
 export default function CampaignPage() {
@@ -32,6 +33,9 @@ export default function CampaignPage() {
     const [selectedLeadDetail, setSelectedLeadDetail] = useState<Lead | null>(null);
     const [loadingList, setLoadingList] = useState(true);
     const [loadingDetail, setLoadingDetail] = useState(false);
+
+    // Loading state for the Personalize Button
+    const [isEnriching, setIsEnriching] = useState(false);
 
     // 1. Load the List on Mount
     useEffect(() => {
@@ -49,7 +53,7 @@ export default function CampaignPage() {
         try {
             const data = await fetchLeads();
             setLeads(data);
-            if (data.length > 0) setSelectedLeadId(data[0].id); // Auto-select first
+            if (data.length > 0 && !selectedLeadId) setSelectedLeadId(data[0].id); // Auto-select first
         } catch (err) {
             console.error(err);
         } finally {
@@ -69,7 +73,32 @@ export default function CampaignPage() {
         }
     };
 
-    // --- HELPER: Update local state when user types in the textarea ---
+    // --- HANDLE AI PERSONALIZATION ---
+    // If data exists, it won't re-scrape, it will just re-run AI (Fast Rewrite).
+    const handleEnrichment = async () => {
+        if (!selectedLeadId) return;
+        setIsEnriching(true);
+
+        try {
+            // 1. Call Backend (Scrape + AI Analysis)
+            await enrichLead(selectedLeadId);
+
+            // 2. Refresh Lead Details (To pull the new Email Body with the Hook)
+            await loadSingleLead(selectedLeadId);
+
+            // 3. Refresh Lead List (To show the 'Hiring' badge in sidebar)
+            loadLeads();
+
+            alert("✨ Personalization Complete! Email updated.");
+
+        } catch (error: any) {
+            console.error("Enrichment failed", error);
+            alert(`❌ Failed: ${error.message}`);
+        } finally {
+            setIsEnriching(false);
+        }
+    };
+
     const updateLocalEmailBody = (templateKey: 'email_1_body' | 'email_2_body' | 'email_3_body', newText: string) => {
         if (!selectedLeadDetail) return;
         setSelectedLeadDetail({
@@ -78,19 +107,15 @@ export default function CampaignPage() {
         });
     };
 
-
     const handlePushSequence = async () => {
         if (!selectedLeadDetail || !selectedLeadId) return;
-
         try {
             alert("🚀 Pushing full sequence to Instantly...");
-
             await sendSequenceToInstantly(selectedLeadId, {
                 email_1: selectedLeadDetail.email_1_body || "",
                 email_2: selectedLeadDetail.email_2_body || "",
                 email_3: selectedLeadDetail.email_3_body || ""
             });
-
             alert("✅ Lead & Sequence added successfully!");
         } catch (error) {
             console.error(error);
@@ -98,13 +123,8 @@ export default function CampaignPage() {
         }
     };
 
-
-
-    // --- ACTION: Send the specific email content to Backend ---
     const handleSend = async (templateId: number) => {
         if (!selectedLeadDetail || !selectedLeadId) return;
-
-        // Pick the correct body text based on which button was clicked
         let finalBody = "";
         if (templateId === 1) finalBody = selectedLeadDetail.email_1_body || "";
         if (templateId === 2) finalBody = selectedLeadDetail.email_2_body || "";
@@ -112,19 +132,12 @@ export default function CampaignPage() {
 
         try {
             alert(` Sending to Instantly.ai...`);
-            // Pass the edited body content to the API
             await sendEmailMock(selectedLeadId, templateId, finalBody);
             alert("✅ Sent successfully!");
         } catch (error) {
             console.error("Failed to send", error);
             alert("❌ Failed to send email.");
         }
-    };
-
-    const handleMoveToEnrichment = () => {
-
-        // Redirects the user to the new Campaign Dashboard we created in Phase 3
-        router.push('/enrichment');
     };
 
     return (
@@ -154,17 +167,31 @@ export default function CampaignPage() {
                 `}
                             >
                                 <div className="flex justify-between items-start">
-                                    <div>
-                                        <h3 className={`font-semibold ${selectedLeadId === lead.id ? 'text-indigo-900' : 'text-gray-900'}`}>
+                                    <div className="w-full">
+                                        <h3 className={`font-semibold flex items-center gap-2 ${selectedLeadId === lead.id ? 'text-indigo-900' : 'text-gray-900'}`}>
                                             {lead.first_name} {lead.last_name}
+
+                                            {/* --- SIDEBAR: HIRING BADGE (ROCKET) --- */}
+                                            {lead.hiring_signal && (
+                                                <Rocket className="w-4 mt-1 h-4 text-green-600 fill-green-100" />
+                                            )}
                                         </h3>
+
                                         <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
                                             <Briefcase className="w-3 h-3" />
                                             {lead.designation}
                                         </p>
-                                        <p className="text-xs text-gray-400 mt-0.5">{lead.company_name}</p>
+
+                                        {/* --- SIDEBAR: "Scanning for..." TEXT --- */}
+                                        {lead.hiring_signal && lead.ai_variables?.hiring_roles ? (
+                                            <p className="text-xs text-green-700 font-medium mt-2 bg-green-50 px-2 py-1 rounded w-fit max-w-full truncate border border-green-100">
+                                                looking for: {lead.ai_variables.hiring_roles}
+                                            </p>
+                                        ) : (
+                                            <p className="text-xs text-gray-400 mt-0.5">{lead.company_name}</p>
+                                        )}
                                     </div>
-                                    <ChevronRight className={`w-4 h-4 mt-1 ${selectedLeadId === lead.id ? 'text-indigo-500' : 'text-gray-300'}`} />
+                                    <ChevronRight className={`w-4 h-4 mt-1 flex-shrink-0 ${selectedLeadId === lead.id ? 'text-indigo-500' : 'text-gray-300'}`} />
                                 </div>
                             </div>
                         ))
@@ -184,8 +211,15 @@ export default function CampaignPage() {
                         <div className="bg-white p-6 border-b border-gray-200 shadow-sm z-10">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-gray-900">
+                                    <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
                                         {selectedLeadDetail.first_name} {selectedLeadDetail.last_name}
+
+                                        {/* --- HEADER: HIRING DETECTED BADGE --- */}
+                                        {selectedLeadDetail.hiring_signal && (
+                                            <span className="bg-green-100 text-green-900 text-xs px-2.5 mt-1 py-0.5 rounded-full border border-green-200 flex items-center gap-1 font-medium">
+                                                <Rocket className="w-3 h-3" /> Hiring Detected
+                                            </span>
+                                        )}
                                     </h2>
                                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                                         <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
@@ -197,32 +231,44 @@ export default function CampaignPage() {
                                     </div>
                                 </div>
 
-                                <div className="flex gap-3">
-                                    {/* 1. Automate Button */}
-                                    <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors">
+                                {/* --- THE 4 BUTTONS --- */}
+                                <div className="flex gap-2">
+                                    {/* 1. Automate */}
+                                    <button className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors text-sm">
                                         <Clock className="w-4 h-4" />
-                                        Automate (Cron)
+                                        Automate
                                     </button>
 
-                                    {/* 2. NEW ENRICHMENT BUTTON */}
+                                    {/* 2. ✨ AI PERSONALIZE (Primary Action) */}
+                                    <button
+                                        onClick={handleEnrichment}
+                                        disabled={isEnriching}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all transform hover:-translate-y-0.5
+                                        ${isEnriching
+                                                ? 'bg-gray-100 text-gray-400 cursor-wait'
+                                                : 'bg-gradient-to-r from-orange-400 to-pink-500 text-white hover:from-orange-500 hover:to-pink-600'
+                                            }`}
+                                    >
+                                        {isEnriching ? (
+                                            <> <Loader2 className="w-4 h-4 animate-spin" /> Analyzing... </>
+                                        ) : (
+                                            <> <BrainCircuit className="w-4 h-4" /> AI Personalize </>
+                                        )}
+                                    </button>
 
-                                    {/* <button className="flex items-center gap-2 px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 font-medium hover:bg-yellow-100 hover:border-yellow-300 transition-colors"
-                                        onClick={handleMoveToEnrichment}>
-                                        <Sparkles className="w-4 h-4 text-yellow-600" /> 
-                                        Go to Enrichment
-                                    </button> */}
+                                    {/* 3. Go to Enrichment (Secondary) */}
                                     <Link href="/enrichment">
-                                        <button className="flex items-center gap-2 px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 font-medium hover:bg-yellow-100 hover:border-yellow-300 transition-colors">
+                                        <button className="flex items-center gap-2 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 font-medium hover:bg-yellow-100 transition-colors text-sm h-full">
                                             <Sparkles className="w-4 h-4 text-yellow-600" />
-                                            Go to Enrichment
+                                            Enrichment
                                         </button>
                                     </Link>
 
-                                    {/* 3. Push Button */}
-                                    <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-lg text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all"
+                                    {/* 4. Push to Instantly */}
+                                    <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-lg text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all text-sm"
                                         onClick={handlePushSequence}>
                                         <Send className="w-4 h-4" />
-                                        Push to Instantly.ai
+                                        Push to Instantly
                                     </button>
                                 </div>
                             </div>
@@ -232,13 +278,15 @@ export default function CampaignPage() {
                         <div className="flex-1 overflow-y-auto p-8 bg-gray-50">
                             <div className="max-w-3xl mx-auto space-y-8">
 
-                                {/* Template 1 */}
+                                {/* Template 1 - HAS REWRITE BUTTON */}
                                 <EmailCard
                                     title="Email 1: Pain-Led Intro"
                                     body={selectedLeadDetail.email_1_body}
                                     onBodyChange={(text: string) => updateLocalEmailBody('email_1_body', text)}
                                     onSend={() => handleSend(1)}
                                     color="blue"
+                                    // Pass handleEnrichment here to enable the rewrite button
+                                    onRegenerate={handleEnrichment}
                                 />
 
                                 {/* Template 2 */}
@@ -269,7 +317,7 @@ export default function CampaignPage() {
 }
 
 // --- SUB COMPONENT FOR EMAIL CARD (EDITABLE) ---
-function EmailCard({ title, body, onSend, color, onBodyChange }: any) {
+function EmailCard({ title, body, onSend, color, onBodyChange, onRegenerate }: any) {
     const colors: any = {
         blue: "border-l-blue-500",
         purple: "border-l-purple-500",
@@ -283,12 +331,28 @@ function EmailCard({ title, body, onSend, color, onBodyChange }: any) {
                     <Mail className="w-4 h-4 text-gray-400" />
                     {title}
                 </h4>
-                <button
-                    onClick={onSend}
-                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
-                >
-                    Send Now
-                </button>
+
+                <div className="flex gap-3">
+                    {/* NEW BUTTON: REGENERATE (Only shown if onRegenerate is passed) */}
+                    {onRegenerate && (
+                        <button
+                            onClick={onRegenerate}
+                            className="flex items-center gap-1 bg-amber-100 text-xs font-medium text-orange-600 hover:text-orange-800 hover:bg-orange-50 px-2 py-1 rounded transition-colors"
+                            title="Rewrite the AI Hook using saved data"
+                        >
+                            <Sparkles className="w-3 h-3" />
+                            Update Personalization
+                        </button>
+                    )}
+
+                    <button
+                        onClick={onSend}
+                        className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                    >
+                        <Send className="w-3 h-3" />
+                        Send Now
+                    </button>
+                </div>
             </div>
             <div className="p-0">
                 <textarea
@@ -300,4 +364,4 @@ function EmailCard({ title, body, onSend, color, onBodyChange }: any) {
             </div>
         </div>
     );
-}
+} 

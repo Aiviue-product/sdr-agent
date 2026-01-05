@@ -1,5 +1,4 @@
 # The "Brain" of your email structure.
-# These templates are designed to be short, punchy, and mobile-friendly.
 
 EMAIL_TEMPLATES = {
     "pain_led": {
@@ -7,10 +6,10 @@ EMAIL_TEMPLATES = {
         "body": """
 Hi {first_name},
 
-Saw you're leading things at {company_name}.
+{opening_line}
 
 {f_pain} is a massive headache for many in the {sector} space right now.
-Most teams I speak with are trying to move towards {a_goal}, but the gap is real.
+Most teams I speak with are trying to move towards {a_goal}, but the gap is real.  
 
 We help teams solve this by {t_solution}.
 Proof: {e_evidence}.
@@ -54,4 +53,4 @@ Best,
 [Your Name]
 """
     }
-}  
+}

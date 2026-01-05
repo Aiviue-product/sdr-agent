@@ -4,8 +4,10 @@ from typing import List
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Lead Verification Pro" 
     API_V1_STR: str = "/api/v1"
+    APIFY_TOKEN: str
     ZEROBOUNCE_API_KEY: str
-    CORS_ORIGINS: List[str] = [] 
+    GEMINI_API_KEY: str
+    CORS_ORIGINS: List[str] = []  
     DATABASE_URL: str 
 
     model_config = SettingsConfigDict(

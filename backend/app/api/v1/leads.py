@@ -4,13 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.services.fate_service import generate_emails_for_lead
 from app.services.instantly_service import send_lead_to_instantly  
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
-from app.models.email import SendEmailRequest, SendSequenceRequest 
+from app.models.email import SendEmailRequest, SendSequenceRequest  
 
 router = APIRouter()
-
-
 
 # --- 1. GET CAMPAIGN LEADS (Main List - Campaign Ready) ---
 @router.get("/")
@@ -25,8 +23,12 @@ async def get_campaign_leads(
     These are the ones ready for outreach.
     """
     # Filter by lead_stage = 'campaign'
+    # UPDATED: Added hiring_signal, enrichment_status, and ai_variables to the selection
     query_str = """
-        SELECT id, first_name, last_name, company_name, designation, sector, email, verification_status, lead_stage 
+        SELECT 
+            id, first_name, last_name, company_name, designation, sector, email, 
+            verification_status, lead_stage,
+            hiring_signal, enrichment_status, ai_variables
         FROM leads 
         WHERE lead_stage = 'campaign'
     """
@@ -41,9 +43,9 @@ async def get_campaign_leads(
     result = await db.execute(text(query_str), params)
     leads = result.mappings().all() 
     
-    return leads
+    return leads 
 
-# --- 2. GET ENRICHMENT LEADS (New Page - Missing Data) ---
+# --- 2. GET ENRICHMENT LEADS (New Page - Missing Data) --- 
 @router.get("/enrichment")
 async def get_enrichment_leads(
     sector: Optional[str] = None,
@@ -82,6 +84,7 @@ async def get_lead_details(lead_id: int, db: AsyncSession = Depends(get_db)):
     Triggers lazy email generation if needed.
     """
     # 1. Fetch Lead
+    # SELECT * automatically grabs the new 'personalized_intro', 'hiring_signal', etc.
     query = text("SELECT * FROM leads WHERE id = :id")
     result = await db.execute(query, {"id": lead_id})
     lead = result.mappings().first()
@@ -90,14 +93,13 @@ async def get_lead_details(lead_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Lead not found")
 
     # 2. Lazy Load Emails (Only if it's a Campaign lead or we force it)
-    # Usually we only generate emails for campaign-ready leads, but we can allow it for all.
     if not lead.get("email_1_body"):
         gen_result = await generate_emails_for_lead(lead_id)
         
         if "error" in gen_result:
             return {**dict(lead), "email_generation_error": gen_result["error"]}
         
-        # Refetch
+        # Refetch to get the newly generated body
         result = await db.execute(query, {"id": lead_id})
         lead = result.mappings().first()
 
