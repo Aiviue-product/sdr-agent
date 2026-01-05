@@ -6,3 +6,6 @@ openpyxl
 python-multipart
 pydantic-settings 
 python-dotenv
+sqlalchemy         
+asyncpg             
+psycopg2-binary
