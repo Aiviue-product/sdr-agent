@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     APIFY_TOKEN: str
     ZEROBOUNCE_API_KEY: str
     GEMINI_API_KEY: str
-    CORS_ORIGIN: str = "http://localhost:3000"  # Single origin - simple string
+    CORS_ORIGIN: str = "http://localhost:3000"  
     DATABASE_URL: str 
 
     model_config = SettingsConfigDict(

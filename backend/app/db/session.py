@@ -17,7 +17,15 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL is required")
 
 # Create Async Engine
-engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
+engine = create_async_engine(
+    DATABASE_URL, 
+    echo=False, 
+    pool_pre_ping=True,
+    # ⚠️ CRITICAL FIX BELOW:
+    # Use "prepare_threshold": None for asyncpg with Supabase Transaction Pooler.
+    # "statement_cache_size": 0 is for psycopg2 and won't work here.
+    connect_args={"prepare_threshold": None} 
+)
 
 # Session Factory
 AsyncSessionLocal = sessionmaker(
@@ -27,9 +35,10 @@ AsyncSessionLocal = sessionmaker(
     autoflush=False
 )
 
-logger.info("✅ Database Engine Initialized (Direct Connection)")
+# Updated log message to match reality
+logger.info("✅ Database Engine Initialized (Transaction Pooler)")
 
 async def get_db():
     """Dependency for FastAPI routes to get a DB session"""
     async with AsyncSessionLocal() as session:
-        yield session
+        yield session 
