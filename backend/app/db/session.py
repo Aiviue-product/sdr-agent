@@ -16,15 +16,18 @@ if not DATABASE_URL:
     logger.error("❌ DATABASE_URL is missing in .env file")
     raise ValueError("DATABASE_URL is required")
 
-# Create Async Engine
+# Add query parameter to disable prepared statements for PgBouncer/Transaction Pooler
+# This is the correct way for SQLAlchemy + asyncpg
+if "?" in DATABASE_URL:
+    DATABASE_URL += "&prepared_statement_cache_size=0"
+else:
+    DATABASE_URL += "?prepared_statement_cache_size=0"
+
+# Create Async Engine (no connect_args needed - handled via URL)
 engine = create_async_engine(
     DATABASE_URL, 
     echo=False, 
-    pool_pre_ping=True,
-    # ⚠️ CRITICAL FIX BELOW:
-    # Use "prepare_threshold": None for asyncpg with Supabase Transaction Pooler.
-    # "statement_cache_size": 0 is for psycopg2 and won't work here.
-    connect_args={"prepare_threshold": None} 
+    pool_pre_ping=True
 )
 
 # Session Factory
@@ -41,4 +44,4 @@ logger.info("✅ Database Engine Initialized (Transaction Pooler)")
 async def get_db():
     """Dependency for FastAPI routes to get a DB session"""
     async with AsyncSessionLocal() as session:
-        yield session 
+        yield session  
