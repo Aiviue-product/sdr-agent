@@ -16,18 +16,16 @@ if not DATABASE_URL:
     logger.error("❌ DATABASE_URL is missing in .env file")
     raise ValueError("DATABASE_URL is required")
 
-# Add query parameter to disable prepared statements for PgBouncer/Transaction Pooler
-# This is the correct way for SQLAlchemy + asyncpg
-if "?" in DATABASE_URL:
-    DATABASE_URL += "&prepared_statement_cache_size=0"
-else:
-    DATABASE_URL += "?prepared_statement_cache_size=0"
-
-# Create Async Engine (no connect_args needed - handled via URL)
+# Create Async Engine with PgBouncer/Transaction Pooler compatibility
+# statement_cache_size=0 disables prepared statements (required for PgBouncer)
 engine = create_async_engine(
     DATABASE_URL, 
     echo=False, 
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    connect_args={
+        "statement_cache_size": 0,      # Disable prepared statement cache
+        "prepared_statement_cache_size": 0  # Also disable this for safety
+    }
 )
 
 # Session Factory
