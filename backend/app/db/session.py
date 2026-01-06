@@ -22,6 +22,9 @@ engine = create_async_engine(
     DATABASE_URL, 
     echo=False, 
     pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+    pool_recycle=300,
     connect_args={
         "statement_cache_size": 0,      # Disable prepared statement cache
         "prepared_statement_cache_size": 0  # Also disable this for safety
