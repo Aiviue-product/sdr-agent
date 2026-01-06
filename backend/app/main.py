@@ -10,7 +10,7 @@ app = FastAPI(title=settings.PROJECT_NAME)
 # CORS - Using single origin from settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.CORS_ORIGIN],  # Wrap single string in list
+    allow_origins=[settings.CORS_ORIGIN],   # Wrap single string in list
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"], 
