@@ -58,3 +58,48 @@ export const sendSequenceToInstantly = async (id: number, payload: SequencePaylo
     });
     return res.json();
 };
+
+
+// ============================================
+// BULK OPERATIONS (NEW)
+// ============================================
+
+import { BulkCheckResponse, BulkPushResponse } from "../../types/types";
+
+/**
+ * Pre-flight check before bulk push.
+ * Returns categorized lead IDs: ready, needs_enrichment, invalid_email, already_sent
+ */
+export const bulkCheckEligibility = async (leadIds: number[]): Promise<BulkCheckResponse> => {
+    const res = await fetch(`${API_BASE_URL}/api/v1/leads/bulk-check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_ids: leadIds })
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Bulk check failed');
+    }
+
+    return res.json();
+};
+
+/**
+ * Push multiple leads to Instantly in a single API call.
+ * Returns success metrics and lists of skipped leads.
+ */
+export const bulkPushToInstantly = async (leadIds: number[]): Promise<BulkPushResponse> => {
+    const res = await fetch(`${API_BASE_URL}/api/v1/leads/bulk-push`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_ids: leadIds })
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Bulk push failed');
+    }
+
+    return res.json();
+};
