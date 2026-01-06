@@ -26,12 +26,12 @@ async def get_campaign_leads(
     query_str = """
         SELECT 
             id, first_name, last_name, company_name, designation, sector, email, 
-            verification_status, lead_stage,
-            hiring_signal, enrichment_status, ai_variables
+            verification_status, lead_stage, linkedin_url,
+            hiring_signal, enrichment_status, ai_variables, is_sent
         FROM leads 
         WHERE verification_status = 'valid'
     """
-    params = {"limit": limit, "offset": skip}
+    params = {"limit": limit, "offset": skip} 
 
     if sector:
         query_str += " AND LOWER(sector) = LOWER(:sector)"
@@ -250,7 +250,12 @@ async def check_bulk_eligibility(
         
         # Check enrichment requirement
         has_linkedin = bool(lead.get("linkedin_url"))
-        is_enriched = lead.get("enrichment_status") == "completed" or lead.get("ai_variables") is not None
+        
+        # Check if ai_variables has actual content (not just empty dict or None)
+        ai_vars = lead.get("ai_variables")
+        has_ai_content = ai_vars is not None and isinstance(ai_vars, dict) and len(ai_vars) > 0
+        
+        is_enriched = lead.get("enrichment_status") == "completed" or has_ai_content
         
         if has_linkedin and not is_enriched:
             # Has LinkedIn but NOT enriched -> Block
@@ -336,7 +341,12 @@ async def bulk_push_to_instantly(
         
         # Check enrichment requirement
         has_linkedin = bool(lead_dict.get("linkedin_url"))
-        is_enriched = lead_dict.get("enrichment_status") == "completed" or lead_dict.get("ai_variables") is not None
+        
+        # Check if ai_variables has actual content (not just empty dict or None)
+        ai_vars = lead_dict.get("ai_variables")
+        has_ai_content = ai_vars is not None and isinstance(ai_vars, dict) and len(ai_vars) > 0
+        
+        is_enriched = lead_dict.get("enrichment_status") == "completed" or has_ai_content
         
         if has_linkedin and not is_enriched:
             # Has LinkedIn but NOT enriched -> Skip this lead

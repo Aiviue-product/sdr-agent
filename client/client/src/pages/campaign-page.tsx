@@ -369,6 +369,17 @@ export default function CampaignPage() {
                                                         Sent ✓
                                                     </span>
                                                 )}
+
+                                                {/* --- NEEDS AI INDICATOR --- */}
+                                                {/* Show if: not sent, has LinkedIn, AND (no ai_variables OR ai_variables is empty) AND not enriched */}
+                                                {!lead.is_sent &&
+                                                    lead.linkedin_url &&
+                                                    (!lead.ai_variables || Object.keys(lead.ai_variables).length === 0) &&
+                                                    lead.enrichment_status !== 'completed' && (
+                                                        <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium border border-amber-200">
+                                                            📝 Needs AI enrichment
+                                                        </span>
+                                                    )}
                                             </h3>
 
                                             <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
