@@ -7,16 +7,15 @@ from app.api.v1 import enrichment
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
-# CORS - Using settings from Pydantic config (with fallback)
-cors_origins = settings.CORS_ORIGINS if settings.CORS_ORIGINS else ["http://localhost:3000"]
-
+# CORS - Using single origin from settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins, 
+    allow_origins=[settings.CORS_ORIGIN],  # Wrap single string in list
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"], 
 )
+
 
 # 1. File Upload Router
 app.include_router(endpoints.router, prefix="/api/v1", tags=["File Processing"])
