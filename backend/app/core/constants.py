@@ -6,12 +6,12 @@ All hardcoded values should be defined here for easy maintenance.
 # ============================================
 # API TIMEOUTS (in seconds)
 # ============================================
-TIMEOUT_ZEROBOUNCE_INDIVIDUAL = 10.0  # Single email verification
-TIMEOUT_ZEROBOUNCE_BULK = 30.0        # Batch email verification
-TIMEOUT_INSTANTLY_SINGLE = 30.0       # Push single lead
-TIMEOUT_INSTANTLY_BULK = 60.0         # Push bulk leads
+TIMEOUT_ZEROBOUNCE_INDIVIDUAL = 20.0  # Single email verification
+TIMEOUT_ZEROBOUNCE_BULK = 120.0        # Batch email verification
+TIMEOUT_INSTANTLY_SINGLE = 60.0       # Push single lead
+TIMEOUT_INSTANTLY_BULK = 120.0         # Push bulk leads
 TIMEOUT_APIFY_SCRAPER = 120.0         # LinkedIn scraper (can be slow)
-TIMEOUT_GEMINI_AI = 60.0              # AI profile analysis
+TIMEOUT_GEMINI_AI = 100.0              # AI profile analysis
 
 # ============================================
 # EXTERNAL API URLS
