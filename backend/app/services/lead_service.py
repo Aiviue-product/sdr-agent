@@ -1,7 +1,7 @@
 import logging
 import pandas as pd # Ensure pandas is imported
-from sqlalchemy import text
-from app.db.session import AsyncSessionLocal  
+from app.db.session import AsyncSessionLocal
+from app.repositories.lead_repository import LeadRepository
 
 logger = logging.getLogger("lead_service")
 
@@ -72,38 +72,11 @@ async def save_verified_leads_to_db(df):
         logger.info("ℹ️ No verified leads found to save.")
         return
 
-    # 6. Batch Upsert to DB
+    # 6. Batch Upsert to DB (via repository)
     async with AsyncSessionLocal() as session:
         try:
-            for lead in leads_to_save:
-                # We added 'lead_stage' to the INSERT and UPDATE parts
-                query = text("""
-                    INSERT INTO leads (
-                        email, first_name, last_name, company_name, linkedin_url, mobile_number, 
-                        designation, sector, priority, verification_status, verification_tag, lead_stage
-                    )
-                    VALUES (
-                        :email, :first_name, :last_name, :company_name, :linkedin_url, :mobile_number, 
-                        :designation, :sector, :priority, :verification_status, :verification_tag, :lead_stage
-                    )
-                    ON CONFLICT (email) 
-                    DO UPDATE SET 
-                        verification_status = EXCLUDED.verification_status,
-                        verification_tag = EXCLUDED.verification_tag,
-                        lead_stage = EXCLUDED.lead_stage,
-                        
-                        -- Smart Updates: Don't overwrite existing data with NULLs if new file is empty
-                        company_name = COALESCE(EXCLUDED.company_name, leads.company_name),
-                        linkedin_url = COALESCE(EXCLUDED.linkedin_url, leads.linkedin_url),
-                        mobile_number = COALESCE(EXCLUDED.mobile_number, leads.mobile_number),
-                        designation = COALESCE(EXCLUDED.designation, leads.designation),
-                        sector = COALESCE(EXCLUDED.sector, leads.sector),
-                        
-                        updated_at = NOW();
-                """)
-                await session.execute(query, lead)
-            
-            await session.commit()
+            lead_repo = LeadRepository(session)
+            await lead_repo.bulk_upsert_leads(leads_to_save)
             logger.info(f"✅ Saved {len(leads_to_save)} leads to DB (Campaign + Enrichment).")
             
         except Exception as e:
