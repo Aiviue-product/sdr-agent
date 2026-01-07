@@ -3,11 +3,9 @@ import asyncio
 import logging
 from urllib.parse import urlparse
 from apify_client import ApifyClientAsync
+from app.core.constants import TIMEOUT_APIFY_SCRAPER, APIFY_LINKEDIN_ACTOR, MAX_SCRAPER_POSTS
 
 logger = logging.getLogger("scraper_service")
-
-# Timeout for Apify scraper (in seconds)
-SCRAPER_TIMEOUT = 120  # 2 minutes max
 
 class LinkedInScraperService:
     def __init__(self):
@@ -24,7 +22,7 @@ class LinkedInScraperService:
             return path_parts[-1]
         return "unknown"
 
-    async def scrape_posts(self, linkedin_url: str, total_posts: int = 2):
+    async def scrape_posts(self, linkedin_url: str, total_posts: int = MAX_SCRAPER_POSTS):
         """
         Scrapes a single profile's posts using Apify with timeout protection.
         """
@@ -38,11 +36,11 @@ class LinkedInScraperService:
             # Wrap the scraping logic with a timeout
             return await asyncio.wait_for(
                 self._do_scrape(linkedin_url, username, total_posts),
-                timeout=SCRAPER_TIMEOUT
+                timeout=TIMEOUT_APIFY_SCRAPER
             )
         except asyncio.TimeoutError:
-            logger.error(f"Scrape timed out for {username} (>{SCRAPER_TIMEOUT}s)")
-            return {"error": f"Scraper timed out after {SCRAPER_TIMEOUT} seconds"}
+            logger.error(f"Scrape timed out for {username} (>{TIMEOUT_APIFY_SCRAPER}s)")
+            return {"error": f"Scraper timed out after {TIMEOUT_APIFY_SCRAPER} seconds"}
         except Exception as e:
             logger.error(f"Scrape Failed for {username}: {e}")
             return {"error": str(e)}
@@ -57,7 +55,7 @@ class LinkedInScraperService:
         }
 
         # 1. Start the Actor
-        run = await self.client.actor("apimaestro/linkedin-profile-posts").call(run_input=run_input)
+        run = await self.client.actor(APIFY_LINKEDIN_ACTOR).call(run_input=run_input)
         
         # 2. Fetch Results
         dataset_id = run["defaultDatasetId"]

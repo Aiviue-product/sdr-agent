@@ -33,7 +33,8 @@ import {
     sendSequenceToInstantly
 } from '../services/campaign-service/api';
 
-import { ApiError, BulkCheckResponse, BulkPushResponse, EmailCardColor, EmailCardProps, Lead } from "../types/types";
+import { EMAIL_CARD_COLORS, MAX_BULK_SELECT_LIMIT } from '../constants';
+import { ApiError, BulkCheckResponse, BulkPushResponse, EmailCardProps, Lead } from "../types/types";
 
 export default function CampaignPage() {
     const [leads, setLeads] = useState<Lead[]>([]);
@@ -57,7 +58,7 @@ export default function CampaignPage() {
     const [bulkPushProgress, setBulkPushProgress] = useState(0);
     const [bulkPushResult, setBulkPushResult] = useState<BulkPushResponse | null>(null);
 
-    const MAX_SELECTION = 100;
+    const MAX_SELECTION = MAX_BULK_SELECT_LIMIT;
 
     // 1. Load the List on Mount
     useEffect(() => {
@@ -188,22 +189,25 @@ export default function CampaignPage() {
             const newSet = new Set(prev);
             if (newSet.has(leadId)) {
                 newSet.delete(leadId);
-            } else if (newSet.size < MAX_SELECTION) {
+            } else if (newSet.size < MAX_BULK_SELECT_LIMIT) {
                 newSet.add(leadId);
             }
             return newSet;
         });
     };
 
-    // Select All (max 100, excluding already-sent)
+    // Select All (max limit, excluding already-sent)
     const handleSelectAll = () => {
-        const unsent = leads.filter(l => !l.is_sent);
-        if (selectedLeadIds.size === Math.min(unsent.length, MAX_SELECTION)) {
-            // If all selected, deselect all
+        const eligibleLeads = leads
+            .filter(l => !l.is_sent)
+            .slice(0, MAX_BULK_SELECT_LIMIT);
+
+        if (selectedLeadIds.size === eligibleLeads.length) {
+            // If all eligible leads are already selected, deselect all
             setSelectedLeadIds(new Set());
         } else {
-            // Select up to MAX_SELECTION unsent leads
-            const toSelect = unsent.slice(0, MAX_SELECTION).map(l => l.id);
+            // Select all eligible leads up to MAX_BULK_SELECT_LIMIT
+            const toSelect = eligibleLeads.map(l => l.id);
             setSelectedLeadIds(new Set(toSelect));
         }
     };
@@ -690,11 +694,7 @@ export default function CampaignPage() {
 
 // --- SUB COMPONENT FOR EMAIL CARD (EDITABLE) ---
 function EmailCard({ title, subject, body, onSend, color, onSubjectChange, onBodyChange, onRegenerate }: EmailCardProps) {
-    const colors: Record<EmailCardColor, string> = {
-        blue: "border-l-blue-500",
-        purple: "border-l-purple-500",
-        orange: "border-l-orange-500"
-    };
+    const colors = EMAIL_CARD_COLORS;
 
     return (
         <div className={`bg-white rounded-xl shadow-sm border border-gray-200 border-l-4 ${colors[color]} overflow-hidden`}>

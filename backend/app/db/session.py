@@ -3,6 +3,7 @@ import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession 
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from app.core.constants import DB_POOL_SIZE, DB_MAX_OVERFLOW, DB_POOL_RECYCLE
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -22,9 +23,9 @@ engine = create_async_engine(
     DATABASE_URL, 
     echo=False, 
     pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-    pool_recycle=300,
+    pool_size=DB_POOL_SIZE,
+    max_overflow=DB_MAX_OVERFLOW,
+    pool_recycle=DB_POOL_RECYCLE,
     connect_args={
         "statement_cache_size": 0,      # Disable prepared statement cache
         "prepared_statement_cache_size": 0  # Also disable this for safety

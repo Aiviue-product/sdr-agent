@@ -3,17 +3,15 @@ import os
 import json
 import asyncio
 import logging
+from app.core.constants import TIMEOUT_GEMINI_AI, GEMINI_MODEL_NAME
 
 logger = logging.getLogger("intelligence_service")
-
-# Timeout for Gemini API calls (in seconds)
-GEMINI_TIMEOUT = 60  # 1 minute max
 
 class IntelligenceService:
     def __init__(self):
         # 1. Initialize Client with New SDK
         self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))   
-        self.model_name = 'gemini-2.5-flash'
+        self.model_name = GEMINI_MODEL_NAME
 
     async def analyze_profile(self, scraped_data: list):
         """
@@ -90,7 +88,7 @@ class IntelligenceService:
                     model=self.model_name,
                     contents=prompt
                 ),
-                timeout=GEMINI_TIMEOUT
+                timeout=TIMEOUT_GEMINI_AI
             )
             
             # The new SDK response object has a .text attribute directly

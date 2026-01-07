@@ -1,6 +1,5 @@
+import { API_BASE_URL } from "../../constants";
 import { CampaignLeadsResponse, Lead, SequencePayload } from "../../types/types";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 // 1. Fetch Campaign Leads (All Verified Leads)
 export const fetchLeads = async (): Promise<CampaignLeadsResponse> => {

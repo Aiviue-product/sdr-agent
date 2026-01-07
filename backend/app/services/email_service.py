@@ -2,12 +2,14 @@ import logging
 import httpx
 import pandas as pd
 from app.core.config import settings
+from app.core.constants import (
+    ZEROBOUNCE_VALIDATE_URL,
+    ZEROBOUNCE_BULK_VALIDATE_URL,
+    TIMEOUT_ZEROBOUNCE_INDIVIDUAL,
+    TIMEOUT_ZEROBOUNCE_BULK
+)
 
-logger = logging.getLogger("email_service")
-
-# Constants
-URL_VALIDATE_INDIVIDUAL = "https://api.zerobounce.net/v2/validate"
-URL_VALIDATE_BATCH = "https://bulkapi.zerobounce.net/v2/validatebatch" 
+logger = logging.getLogger("email_service") 
 
 async def verify_individual(email: str) -> tuple[str, str]:
     """
@@ -27,8 +29,8 @@ async def verify_individual(email: str) -> tuple[str, str]:
     }
     
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(URL_VALIDATE_INDIVIDUAL, params=params)
+        async with httpx.AsyncClient(timeout=TIMEOUT_ZEROBOUNCE_INDIVIDUAL) as client:
+            response = await client.get(ZEROBOUNCE_VALIDATE_URL, params=params)
         
         if response.status_code != 200:
             logger.error(f"API Error for email validation: {response.status_code}")
@@ -69,8 +71,8 @@ async def verify_bulk_batch(email_list: list) -> dict:
     }
     
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(URL_VALIDATE_BATCH, json=payload)
+        async with httpx.AsyncClient(timeout=TIMEOUT_ZEROBOUNCE_BULK) as client:
+            response = await client.post(ZEROBOUNCE_BULK_VALIDATE_URL, json=payload)
         
         if response.status_code != 200:
              logger.error(f"Bulk API HTTP Error {response.status_code}")

@@ -3,11 +3,14 @@ import httpx
 import logging
 import json
 from typing import Any
+from app.core.constants import (
+    INSTANTLY_API_URL,
+    INSTANTLY_BULK_API_URL,
+    TIMEOUT_INSTANTLY_SINGLE,
+    TIMEOUT_INSTANTLY_BULK
+)
 
-logger = logging.getLogger("instantly_service") 
-
-#  V2 Endpoint
-INSTANTLY_API_URL = "https://api.instantly.ai/api/v2/leads"
+logger = logging.getLogger("instantly_service")
 
 async def send_lead_to_instantly(lead_data: dict, emails_payload: Any):
     """
@@ -71,7 +74,7 @@ async def send_lead_to_instantly(lead_data: dict, emails_payload: Any):
     logger.debug(f"Payload: {json.dumps(payload, indent=2)}")
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=TIMEOUT_INSTANTLY_SINGLE) as client:
             response = await client.post(INSTANTLY_API_URL, json=payload, headers=headers)
         
         # Log the actual response
@@ -96,9 +99,8 @@ async def send_lead_to_instantly(lead_data: dict, emails_payload: Any):
 
 
 # ============================================
-# BULK PUSH FUNCTION (NEW)
+# BULK PUSH FUNCTION
 # ============================================
-INSTANTLY_BULK_API_URL = "https://api.instantly.ai/api/v2/leads/add"
 
 async def send_leads_bulk_to_instantly(leads_data: list):
     """
@@ -182,7 +184,7 @@ async def send_leads_bulk_to_instantly(leads_data: list):
     logger.info(f"Total leads in payload: {len(leads_payload)}")
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=TIMEOUT_INSTANTLY_BULK) as client:
             response = await client.post(INSTANTLY_BULK_API_URL, json=payload, headers=headers)
 
         logger.info(f"Response Status: {response.status_code}")

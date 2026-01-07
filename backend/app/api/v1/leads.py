@@ -8,6 +8,7 @@ from app.services.instantly_service import send_lead_to_instantly, send_leads_bu
 from typing import Optional, List
 from pydantic import BaseModel
 from app.models.email import SendEmailRequest, SendSequenceRequest  
+from app.core.constants import MAX_BULK_LEADS
 
 router = APIRouter()
 logger = logging.getLogger("leads_api")
@@ -159,8 +160,8 @@ async def check_bulk_eligibility(
     if not request.lead_ids:
         return {"error": "No lead IDs provided"}
     
-    if len(request.lead_ids) > 100:
-        return {"error": "Maximum 100 leads allowed per batch"}
+    if len(request.lead_ids) > MAX_BULK_LEADS:
+        return {"error": f"Maximum {MAX_BULK_LEADS} leads allowed per batch"}
 
     lead_repo = LeadRepository(db)
     leads = await lead_repo.get_by_ids_for_bulk_check(request.lead_ids)
@@ -233,8 +234,8 @@ async def bulk_push_to_instantly(
     if not request.lead_ids:
         raise HTTPException(status_code=400, detail="No lead IDs provided")
     
-    if len(request.lead_ids) > 100:
-        raise HTTPException(status_code=400, detail="Maximum 100 leads allowed per batch")
+    if len(request.lead_ids) > MAX_BULK_LEADS:
+        raise HTTPException(status_code=400, detail=f"Maximum {MAX_BULK_LEADS} leads allowed per batch")
 
     lead_repo = LeadRepository(db)
     leads = await lead_repo.get_by_ids_for_bulk_push(request.lead_ids)

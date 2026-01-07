@@ -5,6 +5,7 @@ import io
 import logging
 from app.services.email_service import verify_individual, verify_bulk_batch
 from app.services.lead_service import save_verified_leads_to_db
+from app.core.constants import MAX_BULK_EMAILS
 
 # Setup Logger
 logger = logging.getLogger("file_service")
@@ -136,7 +137,7 @@ async def _process_bulk_logic(df):
         logger.warning("⚠️ No emails found to verify in Bulk Logic.")
         return
 
-    CHUNK_SIZE = 100
+    CHUNK_SIZE = MAX_BULK_EMAILS
     verification_results = {}
     api_failed = False
 

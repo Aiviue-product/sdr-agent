@@ -5,13 +5,11 @@ import tempfile
 from pathlib import Path
 
 from app.services.file_service import process_excel_file
+from app.core.constants import MAX_FILE_SIZE_BYTES, FILE_CHUNK_SIZE_BYTES
 
 logger = logging.getLogger("endpoints")
 
 router = APIRouter()
-
-# Max file size: 10 MB
-MAX_FILE_SIZE = 10 * 1024 * 1024  # bytes
 
 
 @router.post("/verify-leads/")
@@ -34,13 +32,13 @@ async def verify_leads_endpoint(
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             temp_input_path = tmp.name
 
-            while chunk := await file.read(1024 * 1024):  # 1MB chunks
+            while chunk := await file.read(FILE_CHUNK_SIZE_BYTES):
                 total_size += len(chunk)
 
-                if total_size > MAX_FILE_SIZE:
+                if total_size > MAX_FILE_SIZE_BYTES:
                     raise HTTPException(
                         status_code=413,
-                        detail="File too large. Maximum allowed size is 10MB."
+                        detail=f"File too large. Maximum allowed size is {MAX_FILE_SIZE_BYTES // (1024*1024)}MB."
                     )
 
                 tmp.write(chunk)
