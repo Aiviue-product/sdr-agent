@@ -81,3 +81,23 @@ export interface BulkPushResponse {
     skipped_no_email: number[];
     skipped_already_sent: number[];
 }
+
+// --- EMAIL CARD COMPONENT TYPES ---
+export type EmailCardColor = 'blue' | 'purple' | 'orange';
+
+export interface EmailCardProps {
+    title: string;
+    subject?: string;
+    body?: string;
+    color: EmailCardColor;
+    onSend: () => void;
+    onSubjectChange: (text: string) => void;
+    onBodyChange: (text: string) => void;
+    onRegenerate?: () => void;
+}
+
+// --- API ERROR TYPE ---
+export interface ApiError {
+    message: string;
+    detail?: string;
+}

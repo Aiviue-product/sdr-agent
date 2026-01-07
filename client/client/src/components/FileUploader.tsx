@@ -2,6 +2,7 @@
 
 import { FileSpreadsheet, UploadCloud, X } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
+import toast from 'react-hot-toast';
 
 interface FileUploaderProps {
     onFileSelect: (file: File | null) => void;
@@ -38,7 +39,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
             if (file.name.endsWith('.xlsx') || file.name.endsWith('.csv')) {
                 onFileSelect(file);
             } else {
-                alert('Please upload an Excel (.xlsx) or CSV file.');
+                toast.error('Please upload an Excel (.xlsx) or CSV file.');
             }
         }
     }, [onFileSelect, disabled]);

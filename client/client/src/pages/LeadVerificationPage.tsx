@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import {
@@ -12,11 +11,12 @@ import {
     Sparkles,
     Zap
 } from 'lucide-react';
-import Link from 'next/link'; // Import Next.js Link
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
 import { FileUploader } from '../components/FileUploader';
 import { verifyLeads } from '../services/email-verification/api';
+import { ApiError } from '../types/types';
 
 export const LeadVerificationPage = () => {
     const router = useRouter();
@@ -47,9 +47,10 @@ export const LeadVerificationPage = () => {
             setDownloadUrl(url);
 
             setStatus('success');
-        } catch (err: any) {
+        } catch (err) {
+            const apiError = err as ApiError;
             setStatus('error');
-            setErrorMessage(err.message || 'Something went wrong');
+            setErrorMessage(apiError.message || 'Something went wrong');
         }
     };
 

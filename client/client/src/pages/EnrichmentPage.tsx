@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import {
@@ -9,6 +8,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { fetchEnrichmentLeads } from '../services/campaign-service/api';
 import { Lead } from '../types/types';
 
@@ -60,9 +60,8 @@ export default function EnrichmentPage() {
                     </p>
                 </div>
 
-                {/* PLACEHOLDER BUTTON */}
                 <button
-                    onClick={() => alert("Enrichment coming soon!\nThis will auto-find Mobile & LinkedIn.")}
+                    onClick={() => toast('Enrichment coming soon! This will auto-find Mobile & LinkedIn.', { icon: '🚧' })}
                     className="flex items-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-yellow-200 transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={leads.length === 0}
                 >

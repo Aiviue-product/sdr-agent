@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import {
@@ -22,6 +21,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
 import {
     bulkCheckEligibility,
@@ -33,7 +33,7 @@ import {
     sendSequenceToInstantly
 } from '../services/campaign-service/api';
 
-import { BulkCheckResponse, BulkPushResponse, Lead } from "../types/types";
+import { ApiError, BulkCheckResponse, BulkPushResponse, EmailCardColor, EmailCardProps, Lead } from "../types/types";
 
 export default function CampaignPage() {
     const [leads, setLeads] = useState<Lead[]>([]);
@@ -112,11 +112,12 @@ export default function CampaignPage() {
             // 3. Refresh Lead List (To show the 'Hiring' badge in sidebar)
             loadLeads();
 
-            alert("✨ Personalization Complete! Email updated.");
+            toast.success('Personalization Complete! Email updated.');
 
-        } catch (error: any) {
+        } catch (error) {
+            const apiError = error as ApiError;
             console.error("Enrichment failed", error);
-            alert(`❌ Failed: ${error.message}`);
+            toast.error(`Failed: ${apiError.message || 'Unknown error'}`);
         } finally {
             setIsEnriching(false);
         }
@@ -134,7 +135,7 @@ export default function CampaignPage() {
     const handlePushSequence = async () => {
         if (!selectedLeadDetail || !selectedLeadId) return;
         try {
-            alert("🚀 Pushing full sequence to Instantly...");
+            toast.loading('Pushing sequence to Instantly...', { id: 'push-sequence' });
 
             // We verify if types allow extra fields, otherwise cast to any
             // Ensure your backend receives these 'email_x_subject' fields
@@ -146,12 +147,12 @@ export default function CampaignPage() {
                 email_1_subject: selectedLeadDetail.email_1_subject || "",
                 email_2_subject: selectedLeadDetail.email_2_subject || "",
                 email_3_subject: selectedLeadDetail.email_3_subject || ""
-            } as any);
+            });
 
-            alert("✅ Lead & Sequence added successfully!");
+            toast.success('Lead & Sequence added successfully!', { id: 'push-sequence' });
         } catch (error) {
             console.error(error);
-            alert("❌ Failed to push sequence.");
+            toast.error('Failed to push sequence.', { id: 'push-sequence' });
         }
     };
 
@@ -165,12 +166,12 @@ export default function CampaignPage() {
         if (templateId === 3) finalBody = selectedLeadDetail.email_3_body || "";
 
         try {
-            alert(` Sending to Instantly.ai...`);
+            toast.loading('Sending to Instantly.ai...', { id: `send-${templateId}` });
             await sendEmailMock(selectedLeadId, templateId, finalBody);
-            alert("✅ Sent successfully!");
+            toast.success('Sent successfully!', { id: `send-${templateId}` });
         } catch (error) {
             console.error("Failed to send", error);
-            alert("❌ Failed to send email.");
+            toast.error('Failed to send email.', { id: `send-${templateId}` });
         }
     };
 
@@ -215,8 +216,9 @@ export default function CampaignPage() {
             const result = await bulkCheckEligibility(Array.from(selectedLeadIds));
             setBulkCheckResult(result);
             setShowBulkModal(true);
-        } catch (error: any) {
-            alert(`❌ Error checking leads: ${error.message}`);
+        } catch (error) {
+            const apiError = error as ApiError;
+            toast.error(`Error checking leads: ${apiError.message || 'Unknown error'}`);
         }
     };
 
@@ -243,8 +245,9 @@ export default function CampaignPage() {
             // Clear selection
             setSelectedLeadIds(new Set());
 
-        } catch (error: any) {
-            alert(`❌ Bulk push failed: ${error.message}`);
+        } catch (error) {
+            const apiError = error as ApiError;
+            toast.error(`Bulk push failed: ${apiError.message || 'Unknown error'}`);
         } finally {
             clearInterval(progressInterval);
             setIsBulkPushing(false);
@@ -686,8 +689,8 @@ export default function CampaignPage() {
 }
 
 // --- SUB COMPONENT FOR EMAIL CARD (EDITABLE) ---
-function EmailCard({ title, subject, body, onSend, color, onSubjectChange, onBodyChange, onRegenerate }: any) {
-    const colors: any = {
+function EmailCard({ title, subject, body, onSend, color, onSubjectChange, onBodyChange, onRegenerate }: EmailCardProps) {
+    const colors: Record<EmailCardColor, string> = {
         blue: "border-l-blue-500",
         purple: "border-l-purple-500",
         orange: "border-l-orange-500"
