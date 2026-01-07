@@ -32,7 +32,13 @@ APIFY_LINKEDIN_ACTOR = "apimaestro/linkedin-profile-posts"
 # ============================================
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 FILE_CHUNK_SIZE_BYTES = 1024 * 1024     # 1 MB chunks for streaming
-
+ALLOWED_EXTENSIONS = {".xlsx", ".csv"}
+ALLOWED_MIME_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/csv",
+    "application/csv"
+}
+ 
 # ============================================
 # BATCH PROCESSING LIMITS
 # ============================================

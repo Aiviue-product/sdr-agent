@@ -27,6 +27,24 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
         }
     }, []);
 
+    const validateFile = (file: File): boolean => {
+        const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+        const allowedExtensions = ['.xlsx', '.csv'];
+        const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+
+        if (!allowedExtensions.includes(extension)) {
+            toast.error('Please upload an Excel (.xlsx) or CSV file.');
+            return false;
+        }
+
+        if (file.size > MAX_SIZE) {
+            toast.error('File is too large. Max allowed size is 10MB.');
+            return false;
+        }
+
+        return true;
+    };
+
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -36,17 +54,18 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
 
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
             const file = e.dataTransfer.files[0];
-            if (file.name.endsWith('.xlsx') || file.name.endsWith('.csv')) {
+            if (validateFile(file)) {
                 onFileSelect(file);
-            } else {
-                toast.error('Please upload an Excel (.xlsx) or CSV file.');
             }
         }
     }, [onFileSelect, disabled]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            onFileSelect(e.target.files[0]);
+            const file = e.target.files[0];
+            if (validateFile(file)) {
+                onFileSelect(file);
+            }
         }
     };
 

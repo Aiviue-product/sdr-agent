@@ -5,7 +5,12 @@ import tempfile
 from pathlib import Path
 
 from app.services.file_service import process_excel_file
-from app.core.constants import MAX_FILE_SIZE_BYTES, FILE_CHUNK_SIZE_BYTES
+from app.core.constants import (
+    MAX_FILE_SIZE_BYTES, 
+    FILE_CHUNK_SIZE_BYTES, 
+    ALLOWED_EXTENSIONS, 
+    ALLOWED_MIME_TYPES
+)
 
 logger = logging.getLogger("endpoints")
 
@@ -17,12 +22,40 @@ async def verify_leads_endpoint(
     file: UploadFile = File(...),
     verification_mode: str = Form("individual")
 ):
-    # 1️ Validate file extension
-    if not file.filename.lower().endswith(('.xlsx', '.xls', '.csv')):
+    # 1. Validate file extension
+    file_path = Path(file.filename)
+    extension = file_path.suffix.lower()
+    
+    if extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail="Invalid file type. Please upload Excel (.xlsx, .xls) or CSV."
+            detail=f"Invalid extension {extension}. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
         )
+
+    # 2. Validate MIME Type (Content-Type)
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        logger.warning(f"Unexpected MIME type: {file.content_type}")
+        # We don't block strictly on MIME yet as browsers can be inconsistent, 
+        # but we'll do the deep check next.
+
+    # 3. Deep Magic Number Check (First few bytes)
+    header = await file.read(4)
+    await file.seek(0) # IMPORTANT: Reset file pointer after reading header
+
+    if extension == ".xlsx":
+        # .xlsx is a ZIP file, first 4 bytes must be 50 4B 03 04 (PK\x03\x04)
+        if header != b'PK\x03\x04':
+            raise HTTPException(
+                status_code=400, 
+                detail="File content does not match .xlsx format (malicious or corrupted)"
+            )
+    elif extension == ".csv":
+        # CSV is text. We'll at least ensure it's not a binary file by checking for null bytes
+        if b'\x00' in header:
+            raise HTTPException(
+                status_code=400,
+                detail="CSV file contains binary data (malicious or corrupted)"
+            )
 
     # 2 Stream file to temp storage + enforce size limit
     try:
@@ -34,7 +67,7 @@ async def verify_leads_endpoint(
 
             while chunk := await file.read(FILE_CHUNK_SIZE_BYTES):
                 total_size += len(chunk)
-
+ 
                 if total_size > MAX_FILE_SIZE_BYTES:
                     raise HTTPException(
                         status_code=413,
