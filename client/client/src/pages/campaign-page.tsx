@@ -408,7 +408,7 @@ export default function CampaignPage() {
                 </div>
 
                 {/* --- RIGHT PANEL: DETAILS & EMAILS --- */}
-                <div className="flex-1 flex flex-col h-screen overflow-hidden">
+                <div className="flex-1 flex flex-col overflow-hidden">
                     {loadingDetail || !selectedLeadDetail ? (
                         <div className="flex-1 flex items-center justify-center">
                             {loadingDetail ? <Loader2 className="w-8 h-8 animate-spin text-indigo-600" /> : <p>Select a lead</p>}
