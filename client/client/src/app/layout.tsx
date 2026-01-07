@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
+import { ClientWrapper } from "../components/ClientWrapper";
 import "./globals.css";
 
 
@@ -52,9 +53,10 @@ export default function RootLayout({
             },
           }}
         />
-        {children}
+        <ClientWrapper>
+          {children}
+        </ClientWrapper>
       </body>
     </html>
   );
 }
-
