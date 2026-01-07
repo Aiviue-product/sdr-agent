@@ -1,14 +1,17 @@
-import requests
+import logging
+import httpx
 import pandas as pd
 from app.core.config import settings
+
+logger = logging.getLogger("email_service")
 
 # Constants
 URL_VALIDATE_INDIVIDUAL = "https://api.zerobounce.net/v2/validate"
 URL_VALIDATE_BATCH = "https://bulkapi.zerobounce.net/v2/validatebatch" 
 
-def verify_individual(email: str) -> tuple[str, str]:
+async def verify_individual(email: str) -> tuple[str, str]:
     """
-    Verifies a single email. 
+    Verifies a single email using async httpx.
     Strict Returns: ('valid', 'Verified') OR ('invalid', 'Review Required')
     """
     if not email or pd.isna(email):
@@ -24,10 +27,11 @@ def verify_individual(email: str) -> tuple[str, str]:
     }
     
     try:
-        response = requests.get(URL_VALIDATE_INDIVIDUAL, params=params, timeout=10)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(URL_VALIDATE_INDIVIDUAL, params=params)
         
         if response.status_code != 200:
-            print(f"API Error for {email}: {response.text}")
+            logger.error(f"API Error for email validation: {response.status_code}")
             # Treat API errors as invalid/review required for safety
             return "invalid", "Review Required"
             
@@ -46,12 +50,12 @@ def verify_individual(email: str) -> tuple[str, str]:
         return "invalid", "Review Required"
 
     except Exception as e:
-        print(f"Exception validating {email}: {str(e)}")
+        logger.error(f"Exception validating email: {str(e)}")
         return "invalid", "Review Required"
 
-def verify_bulk_batch(email_list: list) -> dict:
+async def verify_bulk_batch(email_list: list) -> dict:
     """
-    Sends up to 100 emails to ZeroBounce Bulk API.
+    Sends up to 100 emails to ZeroBounce Bulk API using async httpx.
     Returns raw dict: { 'email@domain.com': 'valid' }
     """
     if not email_list: 
@@ -65,10 +69,11 @@ def verify_bulk_batch(email_list: list) -> dict:
     }
     
     try:
-        response = requests.post(URL_VALIDATE_BATCH, json=payload, timeout=30)
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(URL_VALIDATE_BATCH, json=payload)
         
         if response.status_code != 200:
-             print(f"Bulk API HTTP Error {response.status_code}")
+             logger.error(f"Bulk API HTTP Error {response.status_code}")
              return {}
 
         data = response.json()
@@ -82,5 +87,5 @@ def verify_bulk_batch(email_list: list) -> dict:
              
         return results_map
     except Exception as e:
-        print(f"Bulk API Exception: {e}")  
+        logger.error(f"Bulk API Exception: {e}")  
         return {}

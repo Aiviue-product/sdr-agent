@@ -1,7 +1,7 @@
 
+import asyncio
 import pandas as pd
 import io
-import time
 import logging
 from app.services.email_service import verify_individual, verify_bulk_batch
 from app.services.lead_service import save_verified_leads_to_db
@@ -143,7 +143,7 @@ async def _process_bulk_logic(df):
     # 3. Batch Process
     for i in range(0, len(emails_to_check), CHUNK_SIZE):
         chunk = emails_to_check[i:i + CHUNK_SIZE]
-        batch_results = verify_bulk_batch(chunk)
+        batch_results = await verify_bulk_batch(chunk)
         
         if not batch_results and chunk: 
             logger.error(f"❌ Batch Verification Failed for chunk starting index {i}")
@@ -209,8 +209,8 @@ async def _process_individual_logic(df):
         # 3. Check Priority
         if priority == 'top':
             try:
-                # Call Individual API
-                raw_response = verify_individual(email) 
+                # Call Individual API (async)
+                raw_response = await verify_individual(email) 
                 
                 # Normalize Response (Handle tuple or string)
                 if isinstance(raw_response, (tuple, list)):
@@ -235,8 +235,8 @@ async def _process_individual_logic(df):
                     df.at[index, 'status'] = 'invalid'
                     df.at[index, 'tag'] = 'Review Required'
                 
-                # Rate limit protection
-                time.sleep(1) 
+                # Rate limit protection (async sleep)
+                await asyncio.sleep(1) 
 
             except Exception as e:
                 logger.error(f"❌ Individual API Error for {email}: {str(e)}")

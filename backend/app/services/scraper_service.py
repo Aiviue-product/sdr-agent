@@ -1,15 +1,19 @@
 import os
+import asyncio
 import logging
 from urllib.parse import urlparse
 from apify_client import ApifyClientAsync
 
 logger = logging.getLogger("scraper_service")
 
+# Timeout for Apify scraper (in seconds)
+SCRAPER_TIMEOUT = 120  # 2 minutes max
+
 class LinkedInScraperService:
     def __init__(self):
         self.api_token = os.getenv("APIFY_TOKEN")
         if not self.api_token:
-            logger.warning("⚠️ APIFY_TOKEN is missing in environment variables.") 
+            logger.warning("APIFY_TOKEN is missing in environment variables.") 
         self.client = ApifyClientAsync(token=self.api_token)
 
     def _get_username_from_url(self, url: str) -> str:
@@ -22,14 +26,29 @@ class LinkedInScraperService:
 
     async def scrape_posts(self, linkedin_url: str, total_posts: int = 2):
         """
-        Scrapes a single profile's posts using Apify.
+        Scrapes a single profile's posts using Apify with timeout protection.
         """
         if not self.api_token:
             return {"error": "Scraper configuration missing"}
 
         username = self._get_username_from_url(linkedin_url)
-        logger.info(f"🔄 Starting Scrape for: {username}")
+        logger.info(f"Starting Scrape for: {username}")
 
+        try:
+            # Wrap the scraping logic with a timeout
+            return await asyncio.wait_for(
+                self._do_scrape(linkedin_url, username, total_posts),
+                timeout=SCRAPER_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Scrape timed out for {username} (>{SCRAPER_TIMEOUT}s)")
+            return {"error": f"Scraper timed out after {SCRAPER_TIMEOUT} seconds"}
+        except Exception as e:
+            logger.error(f"Scrape Failed for {username}: {e}")
+            return {"error": str(e)}
+
+    async def _do_scrape(self, linkedin_url: str, username: str, total_posts: int):
+        """Internal method that performs the actual scraping."""
         # Input config for 'apimaestro/linkedin-profile-posts'
         run_input = {
             "username": linkedin_url.strip(),
@@ -37,33 +56,28 @@ class LinkedInScraperService:
             "page_number": 1
         }
 
-        try:
-            # 1. Start the Actor
-            run = await self.client.actor("apimaestro/linkedin-profile-posts").call(run_input=run_input)
-            
-            # 2. Fetch Results
-            dataset_id = run["defaultDatasetId"]
-            raw_posts = []
-            
-            # Iterate through the dataset items
-            async for item in self.client.dataset(dataset_id).iterate_items():
-                raw_posts.append(item)
+        # 1. Start the Actor
+        run = await self.client.actor("apimaestro/linkedin-profile-posts").call(run_input=run_input)
+        
+        # 2. Fetch Results
+        dataset_id = run["defaultDatasetId"]
+        raw_posts = []
+        
+        # Iterate through the dataset items
+        async for item in self.client.dataset(dataset_id).iterate_items():
+            raw_posts.append(item)
 
-            logger.info(f"✅ Scrape Finished: {username} (Found {len(raw_posts)} posts)")
+        logger.info(f"Scrape Finished: {username} (Found {len(raw_posts)} posts)")
 
-            # 3. Clean & Extract specific fields using your specific JSON format
-            cleaned_data = self._extract_key_fields(raw_posts)
-            
-            return {
-                "success": True,
-                "profile_url": linkedin_url,
-                "username": username,
-                "scraped_data": cleaned_data
-            }
-
-        except Exception as e:
-            logger.error(f"❌ Scrape Failed for {username}: {e}")
-            return {"error": str(e)}
+        # 3. Clean & Extract specific fields using your specific JSON format
+        cleaned_data = self._extract_key_fields(raw_posts)
+        
+        return {
+            "success": True,
+            "profile_url": linkedin_url,
+            "username": username,
+            "scraped_data": cleaned_data
+        }
 
     def _extract_key_fields(self, raw_posts: list) -> list:
         """

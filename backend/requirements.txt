@@ -12,3 +12,4 @@ psycopg2-binary
 apify-client
 google-genai 
 pytest-asyncio
+httpx

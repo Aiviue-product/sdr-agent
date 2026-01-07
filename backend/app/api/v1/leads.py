@@ -91,7 +91,7 @@ async def send_email_to_provider(
         raise HTTPException(status_code=404, detail="Lead not found")
 
     lead_data = dict(lead)
-    result = send_lead_to_instantly(lead_data, request.email_body)
+    result = await send_lead_to_instantly(lead_data, request.email_body)
 
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -123,7 +123,7 @@ async def push_sequence_to_instantly(
         "email_3_subject": request.email_3_subject 
     }
 
-    result = send_lead_to_instantly(lead_data, emails_payload)
+    result = await send_lead_to_instantly(lead_data, emails_payload)
 
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
@@ -312,7 +312,7 @@ async def bulk_push_to_instantly(
         logger.info(f"✅ Email generation complete for {len(leads_needing_emails)} leads")
     
     # Call bulk Instantly service
-    instantly_result = send_leads_bulk_to_instantly(leads_to_push)
+    instantly_result = await send_leads_bulk_to_instantly(leads_to_push)
     
     if "error" in instantly_result:
         raise HTTPException(status_code=500, detail=instantly_result["error"])

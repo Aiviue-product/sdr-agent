@@ -1,22 +1,23 @@
 import os
-import requests
+import httpx
 import logging
 import json
+from typing import Any
 
 logger = logging.getLogger("instantly_service") 
 
 #  V2 Endpoint
 INSTANTLY_API_URL = "https://api.instantly.ai/api/v2/leads"
 
-def send_lead_to_instantly(lead_data: dict, emails_payload: any):
+async def send_lead_to_instantly(lead_data: dict, emails_payload: Any):
     """
-    Adds a SINGLE lead to an Instantly.ai campaign using API V2.
+    Adds a SINGLE lead to an Instantly.ai campaign using API V2 (async).
     """
     api_key = os.environ.get("INSTANTLY_API_KEY")
     campaign_id = os.environ.get("INSTANTLY_CAMPAIGN_ID")
 
     if not api_key or not campaign_id:
-        logger.error("❌ Missing Instantly API Key or Campaign ID")
+        logger.error("Missing Instantly API Key or Campaign ID")
         return {"error": "Server misconfiguration: Missing Instantly credentials"}
 
     user_email = lead_data.get("email")
@@ -67,29 +68,30 @@ def send_lead_to_instantly(lead_data: dict, emails_payload: any):
 
     # --- DEBUG LOG ---
     logger.info("--- SENDING TO INSTANTLY V2 ---") 
-    logger.info(f" Payload: {json.dumps(payload, indent=2)}")
+    logger.debug(f"Payload: {json.dumps(payload, indent=2)}")
 
     try:
-        response = requests.post(INSTANTLY_API_URL, json=payload, headers=headers)
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(INSTANTLY_API_URL, json=payload, headers=headers)
         
         # Log the actual response
-        logger.info(f" Response Status: {response.status_code}")
-        logger.info(f" Response Body: {response.text}")
+        logger.info(f"Response Status: {response.status_code}")
+        logger.debug(f"Response Body: {response.text}")
         
-        if not response.ok:
-            logger.error(f" Instantly Error: {response.status_code} - {response.text}")
+        if response.status_code >= 400:
+            logger.error(f"Instantly Error: {response.status_code} - {response.text}")
             return {"error": f"Instantly Error: {response.text}"}
 
         response_data = response.json()
         
         #  Check if lead was actually added
         if response_data:
-            logger.info(f"Instantly Response Data: {json.dumps(response_data, indent=2)}")
+            logger.debug(f"Instantly Response Data: {json.dumps(response_data, indent=2)}")
         
         return {"success": True, "instantly_response": response_data}
         
     except Exception as e:
-        logger.error(f" Connection Failed: {str(e)}") 
+        logger.error(f"Connection Failed: {str(e)}") 
         return {"error": str(e)}
 
 
@@ -98,9 +100,9 @@ def send_lead_to_instantly(lead_data: dict, emails_payload: any):
 # ============================================
 INSTANTLY_BULK_API_URL = "https://api.instantly.ai/api/v2/leads/add"
 
-def send_leads_bulk_to_instantly(leads_data: list):
+async def send_leads_bulk_to_instantly(leads_data: list):
     """
-    Adds MULTIPLE leads (up to 100) to an Instantly.ai campaign using API V2 Bulk Endpoint.
+    Adds MULTIPLE leads (up to 100) to an Instantly.ai campaign using API V2 Bulk Endpoint (async).
     
     Args:
         leads_data: List of lead dictionaries, each containing:
@@ -115,7 +117,7 @@ def send_leads_bulk_to_instantly(leads_data: list):
     campaign_id = os.environ.get("INSTANTLY_CAMPAIGN_ID")
 
     if not api_key or not campaign_id:
-        logger.error("❌ Missing Instantly API Key or Campaign ID")
+        logger.error("Missing Instantly API Key or Campaign ID")
         return {"error": "Server misconfiguration: Missing Instantly credentials"}
 
     if not leads_data:
@@ -177,16 +179,17 @@ def send_leads_bulk_to_instantly(leads_data: list):
 
     # Debug log
     logger.info("--- BULK SENDING TO INSTANTLY V2 ---")
-    logger.info(f"📦 Total leads in payload: {len(leads_payload)}")
+    logger.info(f"Total leads in payload: {len(leads_payload)}")
 
     try:
-        response = requests.post(INSTANTLY_BULK_API_URL, json=payload, headers=headers)
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(INSTANTLY_BULK_API_URL, json=payload, headers=headers)
 
-        logger.info(f"📡 Response Status: {response.status_code}")
-        logger.info(f"📄 Response Body: {response.text}")
+        logger.info(f"Response Status: {response.status_code}")
+        logger.debug(f"Response Body: {response.text}")
 
-        if not response.ok:
-            logger.error(f"❌ Instantly Bulk Error: {response.status_code} - {response.text}")
+        if response.status_code >= 400:
+            logger.error(f"Instantly Bulk Error: {response.status_code} - {response.text}")
             return {"error": f"Instantly Error: {response.text}"}
 
         response_data = response.json()
@@ -204,9 +207,10 @@ def send_leads_bulk_to_instantly(leads_data: list):
             "instantly_response": response_data
         }
 
-        logger.info(f"✅ Bulk push complete: {result['leads_uploaded']} uploaded")
+        logger.info(f"Bulk push complete: {result['leads_uploaded']} uploaded")
         return result
 
     except Exception as e:
-        logger.error(f"❌ Bulk Connection Failed: {str(e)}")
-        return {"error": str(e)} 
+        logger.error(f"Bulk Connection Failed: {str(e)}")
+        return {"error": str(e)}
+ 

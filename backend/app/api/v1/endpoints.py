@@ -1,8 +1,12 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse
-from app.services.file_service import process_excel_file
+import logging
 import tempfile
-from pathlib import Path 
+from pathlib import Path
+
+from app.services.file_service import process_excel_file
+
+logger = logging.getLogger("endpoints")
 
 router = APIRouter()
 
@@ -62,7 +66,7 @@ async def verify_leads_endpoint(
         )
 
     except Exception as e:
-        print(f"Processing Error: {e}")
+        logger.error(f"Processing Error: {e}")
         raise HTTPException(
             status_code=500,
             detail="An internal error occurred during processing."

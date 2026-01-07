@@ -1,9 +1,13 @@
 from google import genai
 import os
 import json
+import asyncio
 import logging
 
 logger = logging.getLogger("intelligence_service")
+
+# Timeout for Gemini API calls (in seconds)
+GEMINI_TIMEOUT = 60  # 1 minute max
 
 class IntelligenceService:
     def __init__(self):
@@ -80,10 +84,13 @@ class IntelligenceService:
         """
 
         try:
-            # 4. Call Gemini (New Async Syntax: client.aio.models.generate_content)
-            response = await self.client.aio.models.generate_content(
-                model=self.model_name,
-                contents=prompt
+            # 4. Call Gemini with timeout protection
+            response = await asyncio.wait_for(
+                self.client.aio.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt
+                ),
+                timeout=GEMINI_TIMEOUT
             )
             
             # The new SDK response object has a .text attribute directly
@@ -93,8 +100,11 @@ class IntelligenceService:
             analysis = json.loads(raw_text)
             return analysis
 
+        except asyncio.TimeoutError:
+            logger.error(f"AI Analysis timed out (>{GEMINI_TIMEOUT}s)")
+            return self._get_fallback_analysis()
         except Exception as e:
-            logger.error(f"❌ AI Analysis Failed: {e}")
+            logger.error(f"AI Analysis Failed: {e}")
             return self._get_fallback_analysis()
 
     def _get_fallback_analysis(self):
@@ -108,4 +118,5 @@ class IntelligenceService:
             "summary_hook": "Hope you're having a productive week."
         }
 
-intelligence_service = IntelligenceService() 
+intelligence_service = IntelligenceService()
+ 

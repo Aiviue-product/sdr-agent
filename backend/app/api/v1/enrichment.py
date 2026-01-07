@@ -1,10 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
+
 from app.db.session import get_db
 from app.repositories.lead_repository import LeadRepository
 from app.services.scraper_service import scraper_service
 from app.services.intelligence_service import intelligence_service
 from app.services.fate_service import generate_emails_for_lead 
+
+logger = logging.getLogger("enrichment")
 
 router = APIRouter()
 
@@ -40,12 +44,12 @@ async def perform_enrichment(
     existing_data = lead.get("scraped_data")
     
     if existing_data and isinstance(existing_data, list) and len(existing_data) > 0 and not force_scrape:
-        print(f"⚡ CACHE HIT: Reusing {len(existing_data)} saved posts for {lead['first_name']}")
+        logger.info(f"CACHE HIT: Reusing {len(existing_data)} saved posts for {lead['first_name']}")
         final_scraped_data = existing_data
     
     else:
         # C. Cache Miss: Scrape Fresh Data
-        print(f"🔄 CACHE MISS: Scraping fresh data for {lead['first_name']} (Force={force_scrape})")
+        logger.info(f"CACHE MISS: Scraping fresh data for {lead['first_name']} (Force={force_scrape})")
         scrape_result = await scraper_service.scrape_posts(lead.linkedin_url)
         
         if not scrape_result.get("success"):
