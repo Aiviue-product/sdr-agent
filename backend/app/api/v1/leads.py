@@ -1,14 +1,16 @@
+import logging
 from fastapi import APIRouter, HTTPException, Depends, Query
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession 
 from app.db.session import get_db
+from app.repositories.lead_repository import LeadRepository
 from app.services.fate_service import generate_emails_for_lead
-from app.services.instantly_service import send_lead_to_instantly  
-from typing import Optional, List, Dict, Any
+from app.services.instantly_service import send_lead_to_instantly, send_leads_bulk_to_instantly
+from typing import Optional, List
 from pydantic import BaseModel
 from app.models.email import SendEmailRequest, SendSequenceRequest  
 
 router = APIRouter()
+logger = logging.getLogger("leads_api")
 
 # --- 1. GET CAMPAIGN LEADS (All Verified Leads) ---
 @router.get("/")
@@ -22,36 +24,10 @@ async def get_campaign_leads(
     Fetch ALL verified leads (verification_status = 'valid').
     Also returns count of leads with missing data for frontend alert.
     """
-    # Main query - get all verified leads
-    query_str = """
-        SELECT 
-            id, first_name, last_name, company_name, designation, sector, email, 
-            verification_status, lead_stage, linkedin_url,
-            hiring_signal, enrichment_status, ai_variables, is_sent
-        FROM leads 
-        WHERE verification_status = 'valid'
-    """
-    params = {"limit": limit, "offset": skip} 
-
-    if sector:
-        query_str += " AND LOWER(sector) = LOWER(:sector)"
-        params["sector"] = sector
-
-    query_str += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
-
-    result = await db.execute(text(query_str), params)
-    leads = result.mappings().all() 
+    lead_repo = LeadRepository(db)
     
-    # Count leads with missing data (for frontend alert)
-    count_query = """
-        SELECT COUNT(*) as incomplete_count
-        FROM leads 
-        WHERE verification_status = 'valid'
-        AND (company_name IS NULL OR linkedin_url IS NULL OR mobile_number IS NULL 
-             OR designation IS NULL OR sector IS NULL)
-    """
-    count_result = await db.execute(text(count_query))
-    incomplete_count = count_result.scalar() or 0
+    leads = await lead_repo.get_campaign_leads(sector, skip, limit)
+    incomplete_count = await lead_repo.get_incomplete_count()
     
     return {
         "leads": list(leads),
@@ -70,25 +46,8 @@ async def get_enrichment_leads(
     Fetch leads that have valid email but are missing some data.
     These have valid emails but missing Mobile/LinkedIn/Company/Designation/Sector.
     """
-    # Filter by verified status AND any missing field
-    query_str = """
-        SELECT id, first_name, last_name, company_name, designation, sector, email, mobile_number, linkedin_url, lead_stage 
-        FROM leads 
-        WHERE verification_status = 'valid'
-        AND (company_name IS NULL OR linkedin_url IS NULL OR mobile_number IS NULL 
-             OR designation IS NULL OR sector IS NULL)
-    """
-    params = {"limit": limit, "offset": skip}
-
-    if sector:
-        query_str += " AND LOWER(sector) = LOWER(:sector)"
-        params["sector"] = sector
-
-    query_str += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
-
-    result = await db.execute(text(query_str), params)
-    leads = result.mappings().all() 
-    
+    lead_repo = LeadRepository(db)
+    leads = await lead_repo.get_enrichment_leads(sector, skip, limit)
     return leads
 
 # --- 3. GET SINGLE LEAD DETAILS (Right Partition) ---
@@ -98,11 +57,10 @@ async def get_lead_details(lead_id: int, db: AsyncSession = Depends(get_db)):
     Fetches lead profile (Works for both Campaign and Enrichment leads).
     Triggers lazy email generation if needed.
     """
-    # 1. Fetch Lead
-    # SELECT * automatically grabs the new 'personalized_intro', 'hiring_signal', etc.
-    query = text("SELECT * FROM leads WHERE id = :id")
-    result = await db.execute(query, {"id": lead_id})
-    lead = result.mappings().first()
+    lead_repo = LeadRepository(db)
+    
+    # 1. Fetch Lead (via repository)
+    lead = await lead_repo.get_by_id(lead_id)
 
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -115,8 +73,7 @@ async def get_lead_details(lead_id: int, db: AsyncSession = Depends(get_db)):
             return {**dict(lead), "email_generation_error": gen_result["error"]}
         
         # Refetch to get the newly generated body
-        result = await db.execute(query, {"id": lead_id})
-        lead = result.mappings().first()
+        lead = await lead_repo.get_by_id(lead_id)
 
     return lead
 
@@ -127,9 +84,8 @@ async def send_email_to_provider(
     request: SendEmailRequest, 
     db: AsyncSession = Depends(get_db)
 ):
-    query = text("SELECT * FROM leads WHERE id = :id")
-    result = await db.execute(query, {"id": lead_id})
-    lead = result.mappings().first()
+    lead_repo = LeadRepository(db)
+    lead = await lead_repo.get_by_id(lead_id)
 
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -140,11 +96,7 @@ async def send_email_to_provider(
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
 
-    await db.execute(
-        text("UPDATE leads SET is_sent = TRUE, sent_at = NOW() WHERE id = :id"),
-        {"id": lead_id}
-    )
-    await db.commit()
+    await lead_repo.update_sent_status(lead_id)
 
     return {"message": "Lead pushed to Instantly V2", "details": result}
 
@@ -155,9 +107,8 @@ async def push_sequence_to_instantly(
     request: SendSequenceRequest, 
     db: AsyncSession = Depends(get_db)
 ):
-    query = text("SELECT * FROM leads WHERE id = :id")
-    result = await db.execute(query, {"id": lead_id})
-    lead = result.mappings().first()
+    lead_repo = LeadRepository(db)
+    lead = await lead_repo.get_by_id(lead_id)
 
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -177,19 +128,14 @@ async def push_sequence_to_instantly(
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
 
-    await db.execute(
-        text("UPDATE leads SET is_sent = TRUE, sent_at = NOW() WHERE id = :id"),
-        {"id": lead_id}
-    )
-    await db.commit()
+    await lead_repo.update_sent_status(lead_id)
 
     return {"message": "Sequence pushed successfully", "details": result}
 
 
 # ============================================
-# BULK OPERATIONS (NEW)
+# BULK OPERATIONS
 # ============================================
-from app.services.instantly_service import send_leads_bulk_to_instantly
 
 # Request model for bulk operations
 class BulkLeadRequest(BaseModel):
@@ -216,18 +162,8 @@ async def check_bulk_eligibility(
     if len(request.lead_ids) > 100:
         return {"error": "Maximum 100 leads allowed per batch"}
 
-    # Fetch all selected leads
-    placeholders = ",".join([f":id_{i}" for i in range(len(request.lead_ids))])
-    params = {f"id_{i}": lid for i, lid in enumerate(request.lead_ids)}
-    
-    query = text(f"""
-        SELECT id, email, linkedin_url, enrichment_status, ai_variables, is_sent
-        FROM leads 
-        WHERE id IN ({placeholders})
-    """)
-    
-    result = await db.execute(query, params)
-    leads = result.mappings().all()
+    lead_repo = LeadRepository(db)
+    leads = await lead_repo.get_by_ids_for_bulk_check(request.lead_ids)
     
     # Categorize leads
     ready = []
@@ -300,24 +236,8 @@ async def bulk_push_to_instantly(
     if len(request.lead_ids) > 100:
         raise HTTPException(status_code=400, detail="Maximum 100 leads allowed per batch")
 
-    # Fetch all selected leads with full data needed for Instantly
-    placeholders = ",".join([f":id_{i}" for i in range(len(request.lead_ids))])
-    params = {f"id_{i}": lid for i, lid in enumerate(request.lead_ids)}
-    
-    query = text(f"""
-        SELECT 
-            id, email, first_name, last_name, company_name, designation, sector,
-            linkedin_url, personalized_intro,
-            email_1_subject, email_1_body,
-            email_2_subject, email_2_body,
-            email_3_subject, email_3_body,
-            enrichment_status, ai_variables, is_sent
-        FROM leads 
-        WHERE id IN ({placeholders})
-    """)
-    
-    result = await db.execute(query, params)
-    leads = result.mappings().all()
+    lead_repo = LeadRepository(db)
+    leads = await lead_repo.get_by_ids_for_bulk_push(request.lead_ids)
     
     # Filter and prepare leads for Instantly
     leads_to_push = []
@@ -370,8 +290,6 @@ async def bulk_push_to_instantly(
     leads_needing_emails = [lead for lead in leads_to_push if not lead.get("email_1_body")]
     
     if leads_needing_emails:
-        import logging
-        logger = logging.getLogger("bulk_push")
         logger.info(f"📧 Auto-generating emails for {len(leads_needing_emails)} leads...")
         
         for lead in leads_needing_emails:
@@ -382,23 +300,8 @@ async def bulk_push_to_instantly(
         
         # Refetch the leads that had emails generated to get updated data
         refetch_ids = [lead["id"] for lead in leads_needing_emails]
-        refetch_placeholders = ",".join([f":rid_{i}" for i in range(len(refetch_ids))])
-        refetch_params = {f"rid_{i}": lid for i, lid in enumerate(refetch_ids)}
-        
-        refetch_query = text(f"""
-            SELECT 
-                id, email, first_name, last_name, company_name, designation, sector,
-                linkedin_url, personalized_intro,
-                email_1_subject, email_1_body,
-                email_2_subject, email_2_body,
-                email_3_subject, email_3_body,
-                enrichment_status, ai_variables, is_sent
-            FROM leads 
-            WHERE id IN ({refetch_placeholders}) 
-        """)
-        
-        refetch_result = await db.execute(refetch_query, refetch_params)
-        refetched_leads = {lead["id"]: dict(lead) for lead in refetch_result.mappings().all()}
+        refetched_leads_list = await lead_repo.get_by_ids_for_bulk_push(refetch_ids)
+        refetched_leads = {lead["id"]: dict(lead) for lead in refetched_leads_list}
         
         # Update the leads_to_push with refreshed data
         leads_to_push = [
@@ -414,18 +317,9 @@ async def bulk_push_to_instantly(
     if "error" in instantly_result:
         raise HTTPException(status_code=500, detail=instantly_result["error"])
     
-    # Update is_sent for successfully pushed leads
+    # Update is_sent for successfully pushed leads (via repository)
     pushed_lead_ids = [lead["id"] for lead in leads_to_push]
-    
-    if pushed_lead_ids:
-        update_placeholders = ",".join([f":uid_{i}" for i in range(len(pushed_lead_ids))])
-        update_params = {f"uid_{i}": lid for i, lid in enumerate(pushed_lead_ids)}
-        
-        await db.execute(
-            text(f"UPDATE leads SET is_sent = TRUE, sent_at = NOW() WHERE id IN ({update_placeholders})"),
-            update_params
-        )
-        await db.commit()
+    await lead_repo.bulk_update_sent(pushed_lead_ids)
     
     return {
         "success": True,
@@ -438,4 +332,4 @@ async def bulk_push_to_instantly(
         "skipped_no_email": skipped_no_email,
         "skipped_already_sent": skipped_already_sent,
         "instantly_response": instantly_result
-    } 
+    }

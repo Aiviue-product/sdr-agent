@@ -1,40 +1,30 @@
 import logging
-from sqlalchemy import text
 from app.db.session import AsyncSessionLocal
-from app.core.templates import EMAIL_TEMPLATES  
+from app.core.templates import EMAIL_TEMPLATES
+from app.repositories.fate_repository import FateRepository
+from app.repositories.lead_repository import LeadRepository
 
 logger = logging.getLogger("fate_service")
 
 class FateEmailGenerator:
     def __init__(self, db_session):
         self.db = db_session
+        self.fate_repo = FateRepository(db_session)
 
     async def get_fate_rule(self, sector: str, designation: str): 
         """
         Tries to find a matching rule in the FATE Matrix.
+        Now uses FateRepository for database access.
         """
-        # 1. Try Exact Match
-        query = text("""
-            SELECT * FROM fate_matrix 
-            WHERE LOWER(sector) = LOWER(:sector) 
-            AND LOWER(designation_role) = LOWER(:designation)
-            LIMIT 1;
-        """)
-        result = await self.db.execute(query, {"sector": sector, "designation": designation})
-        rule = result.fetchone()
+        # 1. Try Exact Match (via repository)
+        rule = await self.fate_repo.get_rule(sector, designation)
 
         if rule:
             return rule
 
-        # 2. Fallback: Generic Sector Match
+        # 2. Fallback: Generic Sector Match (via repository)
         logger.info(f"⚠️ No exact match for {designation} in {sector}. Using generic sector rule.")
-        query_fallback = text("""
-            SELECT * FROM fate_matrix 
-            WHERE LOWER(sector) = LOWER(:sector) 
-            LIMIT 1;
-        """)
-        result_fallback = await self.db.execute(query_fallback, {"sector": sector})
-        return result_fallback.fetchone()
+        return await self.fate_repo.get_rule_by_sector(sector)
 
     def fill_templates(self, lead_data: dict, fate_rule) -> dict:
         """
@@ -110,21 +100,22 @@ class FateEmailGenerator:
 async def generate_emails_for_lead(lead_id: int):
     """
     Orchestrator function.
-    1. Fetch Lead
-    2. Find Rule
+    1. Fetch Lead (via LeadRepository)
+    2. Find Rule (via FateRepository)
     3. Generate Emails (Subject + Body)
-    4. Save BOTH to DB
+    4. Save BOTH to DB (via LeadRepository)
     """
     async with AsyncSessionLocal() as session:
-        # A. Fetch Lead
-        query_lead = text("SELECT * FROM leads WHERE id = :id")
-        result = await session.execute(query_lead, {"id": lead_id})
-        lead = result.mappings().first()
+        # Initialize repositories
+        lead_repo = LeadRepository(session)
+        
+        # A. Fetch Lead (via repository)
+        lead = await lead_repo.get_by_id(lead_id)
 
         if not lead:
             return {"error": "Lead not found"}
 
-        # B. Get FATE Rule
+        # B. Get FATE Rule (via FateEmailGenerator which uses FateRepository)
         generator = FateEmailGenerator(session)
         fate_rule = await generator.get_fate_rule(lead.sector, lead.designation)
 
@@ -134,29 +125,7 @@ async def generate_emails_for_lead(lead_id: int):
         # C. Generate Content
         emails = generator.fill_templates(dict(lead), fate_rule)
 
-        # D. Save to DB (UPDATED: Saves Subjects AND Bodies)
-        update_query = text("""
-            UPDATE leads 
-            SET 
-                email_1_subject = :s1, 
-                email_1_body = :b1,
-                email_2_subject = :s2, 
-                email_2_body = :b2,
-                email_3_subject = :s3, 
-                email_3_body = :b3,
-                updated_at = NOW()
-            WHERE id = :id
-        """)
-        
-        await session.execute(update_query, {
-            "s1": emails["email_1"]["subject"], 
-            "b1": emails["email_1"]["body"],
-            "s2": emails["email_2"]["subject"], 
-            "b2": emails["email_2"]["body"],
-            "s3": emails["email_3"]["subject"], 
-            "b3": emails["email_3"]["body"],
-            "id": lead_id
-        })
-        await session.commit()
+        # D. Save to DB (via repository)
+        await lead_repo.update_emails(lead_id, emails)
         
         return {"success": True, "emails": emails}
