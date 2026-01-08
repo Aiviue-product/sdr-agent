@@ -90,11 +90,16 @@ async def process_excel_file(input_file_path: str, verification_mode: str) -> io
     # Log found columns for debugging
     logger.info(f"📂 Detected & Normalized Columns: {df.columns.tolist()}")
 
-    # Initialize status columns if missing
+    # 2. Initialize and force string type for status/tag columns
+    # This prevents the "FutureWarning: Setting an item of incompatible dtype"
     if 'status' not in df.columns:
         df['status'] = 'unverified'
     if 'tag' not in df.columns:
         df['tag'] = ''
+    
+    # Force cast to string to handle cases where the file had empty numeric columns
+    df['status'] = df['status'].astype(str)
+    df['tag'] = df['tag'].astype(str)
 
     # 2. Process based on Mode
     if verification_mode.lower() == 'bulk':
@@ -114,7 +119,7 @@ async def process_excel_file(input_file_path: str, verification_mode: str) -> io
     return output
 
 # --- Helper Functions (Strict Logic) ---
-
+ 
 async def _process_bulk_logic(df):
     """Chunks data and calls Bulk API with STRICT Filtering and Status Checks"""
     

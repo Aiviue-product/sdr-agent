@@ -224,13 +224,52 @@ class LeadRepository:
     # INSERT/UPSERT OPERATIONS
     # ============================================
     
-    async def upsert_lead(self, lead: dict):
+    # async def upsert_lead(self, lead: dict):
+    #     """
+    #     Insert a new lead or update existing one (by email).
+    #     Uses ON CONFLICT to handle duplicates smartly.
+    #     - Updates verification info
+    #     - Uses COALESCE to not overwrite existing data with NULLs
+    #     """
+    #     query = text("""
+    #         INSERT INTO leads (
+    #             email, first_name, last_name, company_name, linkedin_url, mobile_number, 
+    #             designation, sector, priority, verification_status, verification_tag, lead_stage
+    #         )
+    #         VALUES (
+    #             :email, :first_name, :last_name, :company_name, :linkedin_url, :mobile_number, 
+    #             :designation, :sector, :priority, :verification_status, :verification_tag, :lead_stage
+    #         )
+    #         ON CONFLICT (email) 
+    #         DO UPDATE SET 
+    #             verification_status = EXCLUDED.verification_status,
+    #             verification_tag = EXCLUDED.verification_tag,
+    #             lead_stage = EXCLUDED.lead_stage,
+                
+    #             -- Smart Updates: Don't overwrite existing data with NULLs if new file is empty
+    #             company_name = COALESCE(EXCLUDED.company_name, leads.company_name),
+    #             linkedin_url = COALESCE(EXCLUDED.linkedin_url, leads.linkedin_url),
+    #             mobile_number = COALESCE(EXCLUDED.mobile_number, leads.mobile_number),
+    #             designation = COALESCE(EXCLUDED.designation, leads.designation),
+    #             sector = COALESCE(EXCLUDED.sector, leads.sector),
+                
+    #             updated_at = NOW();
+    #     """)
+    #     await self.db.execute(query, lead)
+
+
+
+
+
+    async def bulk_upsert_leads(self, leads: list, batch_size: int = 500):
         """
-        Insert a new lead or update existing one (by email).
-        Uses ON CONFLICT to handle duplicates smartly.
-        - Updates verification info
-        - Uses COALESCE to not overwrite existing data with NULLs
-        """
+        Insert/update multiple leads in a batch (The Bus Approach).
+        Handles large datasets (like 22k+ leads) by chunking them into batches
+        to optimize performance and avoid memory/timeout issues.
+        """ 
+        if not leads:  
+            return
+
         query = text("""
             INSERT INTO leads (
                 email, first_name, last_name, company_name, linkedin_url, mobile_number, 
@@ -255,13 +294,16 @@ class LeadRepository:
                 
                 updated_at = NOW();
         """)
-        await self.db.execute(query, lead)
 
-    async def bulk_upsert_leads(self, leads: list):
-        """
-        Insert/update multiple leads in a batch.
-        Uses transaction - commits at the end.
-        """
-        for lead in leads:
-            await self.upsert_lead(lead)
-        await self.db.commit()
+        # Process in chunks of 1000
+        # Optimized Processing
+        try:
+            for i in range(0, len(leads), batch_size):
+                batch = leads[i : i + batch_size]
+                await self.db.execute(query, batch)
+            
+            await self.db.commit()
+            
+        except Exception as e:
+            await self.db.rollback() # Important safety net!
+            raise e

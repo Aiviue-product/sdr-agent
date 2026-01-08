@@ -63,7 +63,7 @@ async def save_verified_leads_to_db(df):
             "designation": designation,
             "sector": sector,
             "priority": priority,
-            "verification_status": status,
+            "verification_status": status, 
             "verification_tag": tag,
             "lead_stage": lead_stage 
         })
