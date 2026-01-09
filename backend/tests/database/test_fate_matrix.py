@@ -34,7 +34,11 @@ def get_database_url():
 
 async def run_query(query_string: str, params: dict = None):
     """Run a query and return all results."""
-    engine = create_async_engine(get_database_url(), echo=False)
+    engine = create_async_engine(
+        get_database_url(), 
+        echo=False,
+        connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+    )
     async_session = sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -53,7 +57,11 @@ async def run_query(query_string: str, params: dict = None):
 
 async def run_scalar(query_string: str, params: dict = None):
     """Run a query and return scalar result."""
-    engine = create_async_engine(get_database_url(), echo=False)
+    engine = create_async_engine(
+        get_database_url(), 
+        echo=False,
+        connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+    )
     async_session = sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -72,7 +80,11 @@ async def run_scalar(query_string: str, params: dict = None):
 
 async def run_fetchone(query_string: str, params: dict = None):
     """Run a query and return first row."""
-    engine = create_async_engine(get_database_url(), echo=False)
+    engine = create_async_engine(
+        get_database_url(), 
+        echo=False,
+        connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+    )
     async_session = sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
     )
