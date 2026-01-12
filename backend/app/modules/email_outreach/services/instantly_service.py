@@ -175,8 +175,8 @@ async def send_leads_bulk_to_instantly(leads_data: list):
 
     payload = {
         "campaign_id": campaign_id,
-        "skip_if_in_workspace": True,  # Don't duplicate if already exists
-        "leads": leads_payload
+        "skip_if_in_workspace": False,  # Allow re-adding leads (matches individual push behavior)
+        "leads": leads_payload 
     }
 
     # Debug log
