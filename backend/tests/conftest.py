@@ -62,7 +62,7 @@ def sample_enrichment_lead():
 @pytest.fixture
 def mock_zerobounce_valid():
     """Mock ZeroBounce API returning valid response."""
-    with patch("app.services.email_service.requests.get") as mock:
+    with patch("app.modules.email_outreach.services.email_service.requests.get") as mock:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"status": "valid"}
@@ -73,7 +73,7 @@ def mock_zerobounce_valid():
 @pytest.fixture
 def mock_zerobounce_invalid():
     """Mock ZeroBounce API returning invalid response."""
-    with patch("app.services.email_service.requests.get") as mock:
+    with patch("app.modules.email_outreach.services.email_service.requests.get") as mock:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"status": "catch-all"}

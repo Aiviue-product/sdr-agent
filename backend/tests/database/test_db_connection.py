@@ -28,7 +28,11 @@ def get_database_url():
 # --- SIMPLE ASYNC HELPER ---
 async def run_query(query_string: str):
     """Run a single query and return result."""
-    engine = create_async_engine(get_database_url(), echo=False)
+    engine = create_async_engine(
+        get_database_url(), 
+        echo=False,
+        connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+    )
     async_session = sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -44,7 +48,11 @@ async def run_query(query_string: str):
 
 async def run_scalar(query_string: str):
     """Run a query and return scalar result."""
-    engine = create_async_engine(get_database_url(), echo=False)
+    engine = create_async_engine(
+        get_database_url(), 
+        echo=False,
+        connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+    )
     async_session = sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
     )

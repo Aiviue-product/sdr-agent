@@ -46,7 +46,11 @@ def generate_unique_email():
 
 async def execute_query(query_string: str, params: dict = None, commit: bool = False):
     """Execute a query with optional params and commit."""
-    engine = create_async_engine(get_database_url(), echo=False)
+    engine = create_async_engine(
+        get_database_url(), 
+        echo=False,
+        connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+    )
     async_session = sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -73,7 +77,11 @@ async def execute_query(query_string: str, params: dict = None, commit: bool = F
 
 async def execute_scalar(query_string: str, params: dict = None):
     """Execute a query and return scalar result."""
-    engine = create_async_engine(get_database_url(), echo=False)
+    engine = create_async_engine(
+        get_database_url(), 
+        echo=False,
+        connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+    )
     async_session = sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -91,7 +99,11 @@ async def execute_scalar(query_string: str, params: dict = None):
 
 async def execute_fetchone(query_string: str, params: dict = None):
     """Execute a query and return first row."""
-    engine = create_async_engine(get_database_url(), echo=False)
+    engine = create_async_engine(
+        get_database_url(), 
+        echo=False,
+        connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+    )
     async_session = sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -126,7 +138,11 @@ async def insert_test_lead(email: str, **kwargs):
         "ai_vars": kwargs.get("ai_variables")
     }
     
-    engine = create_async_engine(get_database_url(), echo=False)
+    engine = create_async_engine(
+        get_database_url(), 
+        echo=False,
+        connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+    )
     async_session = sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -150,7 +166,11 @@ async def insert_test_lead(email: str, **kwargs):
 
 async def delete_test_lead(email: str):
     """Delete a test lead by email."""
-    engine = create_async_engine(get_database_url(), echo=False)
+    engine = create_async_engine(
+        get_database_url(), 
+        echo=False,
+        connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+    )
     async_session = sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -243,7 +263,11 @@ def test_duplicate_email_upsert_behavior():
     test_email = generate_unique_email()
     
     async def test_logic():
-        engine = create_async_engine(get_database_url(), echo=False)
+        engine = create_async_engine(
+            get_database_url(), 
+            echo=False,
+            connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+        )
         async_session = sessionmaker(
             bind=engine, class_=AsyncSession, expire_on_commit=False
         )
@@ -332,7 +356,11 @@ def test_update_lead_stage():
     test_email = generate_unique_email()
     
     async def test_logic():
-        engine = create_async_engine(get_database_url(), echo=False)
+        engine = create_async_engine(
+            get_database_url(), 
+            echo=False,
+            connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+        )
         async_session = sessionmaker(
             bind=engine, class_=AsyncSession, expire_on_commit=False
         )
@@ -441,7 +469,11 @@ def test_email_is_unique_constraint():
     test_email = generate_unique_email()
     
     async def test_logic():
-        engine = create_async_engine(get_database_url(), echo=False)
+        engine = create_async_engine(
+            get_database_url(), 
+            echo=False,
+            connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+        )
         async_session = sessionmaker(
             bind=engine, class_=AsyncSession, expire_on_commit=False
         )

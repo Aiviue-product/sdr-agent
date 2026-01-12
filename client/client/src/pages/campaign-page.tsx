@@ -151,6 +151,9 @@ export default function CampaignPage() {
             });
 
             toast.success('Lead & Sequence added successfully!', { id: 'push-sequence' });
+
+            // Refresh leads list to update is_sent status and show "Sent ✓" badge
+            loadLeads();
         } catch (error) {
             console.error(error);
             toast.error('Failed to push sequence.', { id: 'push-sequence' });
