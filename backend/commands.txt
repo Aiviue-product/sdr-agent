@@ -1,0 +1,11 @@
+# 1. Generate migration after model change
+alembic revision --autogenerate -m "your message"
+
+# 2. Apply migration to database
+alembic upgrade head
+
+# 3. Check current migration status
+alembic current
+
+# 4. View migration history
+alembic history
