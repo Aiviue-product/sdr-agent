@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.shared.db.base import Base
 from app.modules.email_outreach.models.lead import Lead
 from app.modules.email_outreach.models.fate_matrix import FateMatrix
+from app.modules.signal_outreach.models.linkedin_lead import LinkedInLead
 
 # This is the Alembic Config object
 config = context.config

@@ -1,3 +1,6 @@
-# Signal Outreach Models
-# TODO:
-# - signal.py (Pydantic models for signal leads, search requests)
+"""
+Signal Outreach Models
+"""
+from app.modules.signal_outreach.models.linkedin_lead import LinkedInLead
+
+__all__ = ["LinkedInLead"]
