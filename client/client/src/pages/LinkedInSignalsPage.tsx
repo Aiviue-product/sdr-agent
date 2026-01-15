@@ -8,7 +8,9 @@ import {
     ExternalLink,
     Filter,
     Loader2,
+    Mail,
     MessageCircle,
+    Phone,
     RefreshCw,
     Rocket,
     Search,
@@ -530,6 +532,35 @@ export default function LinkedInSignalsPage() {
                                                     Looking for: {selectedLeadDetail.hiring_roles}
                                                 </p>
                                             )}
+
+                                            {/* Contact Information Bar */}
+                                            {((selectedLeadDetail.ai_variables as any)?.contact_email ||
+                                                (selectedLeadDetail.ai_variables as any)?.contact_phone ||
+                                                (selectedLeadDetail.ai_variables as any)?.company_hiring) && (
+                                                    <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-gray-100/50">
+                                                        {(selectedLeadDetail.ai_variables as any).company_hiring && (
+                                                            <div className="flex items-center gap-1.5 text-sm text-gray-700 bg-blue-50/50 px-2.5 py-1 rounded-md border border-blue-100/30">
+                                                                <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                                                                <span className="text-gray-500 text-[10px] uppercase font-bold tracking-tight">Company:</span>
+                                                                <span className="font-semibold text-gray-800">{(selectedLeadDetail.ai_variables as any).company_hiring}</span>
+                                                            </div>
+                                                        )}
+                                                        {(selectedLeadDetail.ai_variables as any).contact_email && (
+                                                            <div className="flex items-center gap-1.5 text-sm text-gray-700 bg-purple-50/50 px-2.5 py-1 rounded-md border border-purple-100/30">
+                                                                <Mail className="w-3.5 h-3.5 text-purple-500" />
+                                                                <span className="text-gray-500 text-[10px] uppercase font-bold tracking-tight">Email:</span>
+                                                                <span className="font-semibold text-gray-800">{(selectedLeadDetail.ai_variables as any).contact_email}</span>
+                                                            </div>
+                                                        )}
+                                                        {(selectedLeadDetail.ai_variables as any).contact_phone && (
+                                                            <div className="flex items-center gap-1.5 text-sm text-gray-700 bg-amber-50/50 px-2.5 py-1 rounded-md border border-amber-100/30">
+                                                                <Phone className="w-3.5 h-3.5 text-amber-500" />
+                                                                <span className="text-gray-500 text-[10px] uppercase font-bold tracking-tight">Phone:</span>
+                                                                <span className="font-semibold text-gray-800">{(selectedLeadDetail.ai_variables as any).contact_phone}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                         </div>
                                     </div>
 

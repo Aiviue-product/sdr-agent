@@ -120,6 +120,29 @@ def extract_json_from_response(text: str) -> dict:
         except json.JSONDecodeError:
             return {}
 
+def extract_emails_from_text(text: str) -> list[str]:
+    """Extract all email addresses from a string."""
+    if not text:
+        return []
+    # Simple email regex
+    email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+    return list(set(re.findall(email_pattern, text)))
+
+def extract_phones_from_text(text: str) -> list[str]:
+    """Extract phone numbers from text (supports international formats)."""
+    if not text:
+        return []
+    # Phone regex looking for patterns like +91..., 0... with min 10 digits
+    # Matches strings that start with digit or +, followed by digits/spaces/dashes
+    phone_pattern = r'\+?[\d][\d\s\-]{8,14}[\d]'
+    matches = re.findall(phone_pattern, text)
+    valid_phones = []
+    for m in matches:
+        digits_only = re.sub(r'\D', '', m)
+        if 10 <= len(digits_only) <= 15:
+            valid_phones.append(m.strip())
+    return list(set(valid_phones))
+
 
 def sanitize_for_xml(text: str) -> str:
     """
@@ -285,8 +308,9 @@ class LinkedInIntelligenceService:
         if not post_text:
             return self._get_fallback_analysis(author_name, include_dm=False)
 
-        # Pre-detection hint for AI
-        intent_hint, is_likely_hiring, is_job_seeker = pre_detect_hiring_intent(post_text)
+        # Pre-detect contact info via Regex (Highly accurate)
+        regex_emails = extract_emails_from_text(post_text)
+        regex_phones = extract_phones_from_text(post_text)
         
         # Sanitize for prompt
         safe_text = sanitize_for_xml(post_text)
@@ -294,11 +318,13 @@ class LinkedInIntelligenceService:
         prompt = f"""
 <context>
 You are an expert at detecting hiring posts on LinkedIn.
-Your goal is to identify whether the AUTHOR of this post is ACTIVELY HIRING employees.
+Your goal is to identify whether the AUTHOR of this post is ACTIVELY HIRING employees and extract relevant contact/company details.
 </context>
 
 <pre_analysis>
 Keyword-based pre-detection result: {intent_hint}
+Regex-detected emails: {', '.join(regex_emails) if regex_emails else 'None'}
+Regex-detected phones: {', '.join(regex_phones) if regex_phones else 'None'}
 </pre_analysis>
 
 <post_data>
@@ -321,22 +347,29 @@ SET hiring_signal = TRUE if the post shows:
 
 SET hiring_signal = FALSE if:
 1. The AUTHOR is LOOKING FOR A JOB (job seeker, not employer)
-   - e.g., "I am looking for a job", "Dear Hiring Team, please consider me"
-   - e.g., "Open to work", "Available for opportunities"
 2. Someone announcing they JOINED a company (not hiring)
 3. Thought leadership content about industry topics
 4. Panel discussions, conferences, or events
 5. Company news that doesn't include active hiring
 </detection_rules>
 
+<extraction_rules>
+1. company_hiring: Extract the name of the company that is hiring. Look at the headline and post text.
+2. contact_email: Extract any email mentioned for applications.
+3. contact_phone: Extract any mobile/phone number mentioned for applications.
+</extraction_rules>
+
 <output_format>
 {{
     "hiring_signal": true/false,
     "hiring_roles": "Role 1, Role 2" (only if hiring) or "",
+    "company_hiring": "Company Name",
+    "contact_email": "email@example.com",
+    "contact_phone": "+1234567890",
     "pain_points": "Business challenge description",
     "key_competencies": "Skills/tools mentioned",
     "standardized_persona": "HR / TA" or "Founder" or "Recruiter" or "Operations" or "Tech" or "Sales / Marketing" or "Other",
-    "detection_reasoning": "Brief explanation of why hiring_signal is true/false"
+    "detection_reasoning": "Brief explanation"
 }}
 </output_format>
 """
@@ -352,6 +385,20 @@ SET hiring_signal = FALSE if:
             if not analysis:
                 return self._get_fallback_analysis(author_name, include_dm=False)
             
+            # Hybrid Merge: Prefer Regex for Email/Phone if AI missed them or vice-versa
+            # But regex is usually more accurate for these specific patterns
+            if regex_emails and not analysis.get("contact_email"):
+                analysis["contact_email"] = regex_emails[0]
+            if regex_phones and not analysis.get("contact_phone"):
+                analysis["contact_phone"] = regex_phones[0]
+            
+            # If no company name extracted by AI, try to get from headline if it looks like "Title at Company"
+            if not analysis.get("company_hiring") and author_headline:
+                if " at " in author_headline:
+                    analysis["company_hiring"] = author_headline.split(" at ")[-1].strip()
+                elif " | " in author_headline:
+                    analysis["company_hiring"] = author_headline.split(" | ")[-1].strip()
+
             return {
                 "hiring_signal": analysis.get("hiring_signal", False),
                 "hiring_roles": analysis.get("hiring_roles", ""),
@@ -491,6 +538,12 @@ SET hiring_signal = FALSE when:
 ❌ Just mentioning industry (Automobile, Tech) without actual job post
 </detection_rules>
 
+<extraction_rules>
+1. company_hiring: Extract the name of the company that is hiring.
+2. contact_email: Extract any email mentioned for applications.
+3. contact_phone: Extract any mobile/phone number mentioned for applications.
+</extraction_rules>
+
 <dm_instructions>
 Write a LinkedIn connection message (max 400 chars) that:
 - Uses casual professional tone
@@ -505,10 +558,13 @@ Return ONLY valid JSON:
 {{
     "hiring_signal": true/false,
     "hiring_roles": "Role 1, Role 2" (if hiring) or "",
+    "company_hiring": "Company Name",
+    "contact_email": "email@example.com",
+    "contact_phone": "+1234567890",
     "pain_points": "Business challenge",
     "key_competencies": "Skills mentioned",
     "standardized_persona": "HR / TA" or "Founder" or "Recruiter" or "Operations" or "Tech" or "Other",
-    "detection_reasoning": "Why hiring_signal is true/false",
+    "detection_reasoning": "Brief explanation",
     "linkedin_dm": "Your personalized message (max 400 chars)"
 }}
 </output_format>
@@ -525,6 +581,23 @@ Return ONLY valid JSON:
             if not analysis:
                 return self._get_fallback_analysis(author_name, include_dm=True)
             
+            # Hybrid Merge (from Regex)
+            # We re-run regex here or pass it in. For simplicity, re-run on post text
+            # Extract post_text same as in analyze_post
+            post_text = post_data.get("text", "") or post_data.get("content", {}).get("text", "")
+            if post_text:
+                regex_emails = extract_emails_from_text(post_text)
+                regex_phones = extract_phones_from_text(post_text)
+                if regex_emails and not analysis.get("contact_email"):
+                    analysis["contact_email"] = regex_emails[0]
+                if regex_phones and not analysis.get("contact_phone"):
+                    analysis["contact_phone"] = regex_phones[0]
+
+            # Company name fallback
+            if not analysis.get("company_hiring") and author_headline:
+                if " at " in author_headline:
+                    analysis["company_hiring"] = author_headline.split(" at ")[-1].strip()
+
             dm = analysis.get("linkedin_dm", self._get_fallback_dm(author_name))
             if len(dm) > 400:
                 dm = dm[:397] + "..."
