@@ -10,6 +10,8 @@ OPTIMIZATIONS:
 - Structured prompting with clear tags
 - Separate methods to save tokens
 - JSON mode enforcement where supported
+- IMPROVED: Better hiring detection with keyword pre-check
+- RATE LIMITING: Handles Gemini free tier (5 req/min) with delays and retries
 """
 from google import genai
 from google.genai import types
@@ -18,25 +20,87 @@ import re
 import json
 import asyncio
 import logging
-from typing import Optional
+import time
+from typing import Optional, Tuple
 from app.shared.core.constants import TIMEOUT_GEMINI_AI, GEMINI_MODEL_NAME
 
 logger = logging.getLogger("linkedin_intelligence_service")
+
+
+#TODO/sagar rajak: Add parallel processing support for when you upgrade
+
+# ============================================
+# RATE LIMITING CONFIGURATION
+# ============================================
+# Set GEMINI_TIER in .env to control rate limiting:
+#   - "free"   : 5 req/min  → 13s delay between calls (default)
+#   - "paid"   : 60 req/min → 1s delay between calls  
+#   - "enterprise" : 1000+ req/min → no delay
+GEMINI_TIER = os.getenv("GEMINI_TIER", "free").lower()
+
+# Configure delays based on tier
+if GEMINI_TIER == "enterprise":
+    RATE_LIMIT_DELAY_SECONDS = 0
+    ENABLE_PARALLEL = True
+elif GEMINI_TIER == "paid":
+    RATE_LIMIT_DELAY_SECONDS = 1  # 60 req/min limit
+    ENABLE_PARALLEL = True
+else:  # "free" or default
+    RATE_LIMIT_DELAY_SECONDS = 13  # 5 req/min limit
+    ENABLE_PARALLEL = False
+
+MAX_RETRIES = 3
+RETRY_BASE_DELAY_SECONDS = 60  # Start with 60s if we hit 429
+
+logger.info(f"🤖 Gemini tier: {GEMINI_TIER.upper()} (delay: {RATE_LIMIT_DELAY_SECONDS}s, parallel: {ENABLE_PARALLEL})")
+
+ 
+# ============================================
+# HIRING DETECTION KEYWORDS
+# ============================================
+
+# Strong indicators that someone IS HIRING
+HIRING_KEYWORDS = [
+    # Direct hiring phrases
+    "we're hiring", "we are hiring", "we're looking for", "we are looking for",
+    "hiring now", "urgent hiring", "immediately hiring", "actively hiring",
+    "join our team", "join us", "join the team", 
+    "open position", "open positions", "open role", "open roles",
+    "looking to hire", "seeking", "we need", "we require",
+    "vacancy", "vacancies", "job opening", "job openings",
+    "apply now", "apply today", "send your resume", "send cv",
+    "interested candidates", "suitable candidates",
+    "position:", "location:", "experience:", "salary:",  # Job post format
+    "🚀 we're hiring", "🔎 position", "📍 location",  # Emoji job posts
+    "urgent requirement", "immediate requirement", "immediate joining",
+    "referral", "refer", "help us find", "know someone",
+]
+
+# Strong indicators that someone IS A JOB SEEKER (NOT hiring)
+JOB_SEEKER_KEYWORDS = [
+    "i am looking for", "i'm looking for", "looking for a job", "looking for job",
+    "looking for opportunity", "looking for opportunities",
+    "seeking job", "seeking opportunity", "seeking employment",
+    "open to work", "open to opportunities", "available for",
+    "currently looking", "actively looking", "actively seeking",
+    "hire me", "contact me", "reach out to me",
+    "dear hiring", "dear hr", "dear recruiter", "dear sir", "dear madam",
+    "i am a", "i'm a", "i have experience", "my experience",
+    "please consider", "kindly consider", "request you",
+    "my resume", "attached resume", "find attached",
+    "i can be reached", "my contact", "my email",
+    "fresher", "recent graduate", "passed out",
+]
 
 
 def extract_json_from_response(text: str) -> dict:
     """
     Robustly extract JSON from AI response.
     Handles cases where AI wraps JSON in markdown or adds conversational text.
-    
-    Strategy:
-    1. Find the first '{' and last '}' in the response
-    2. Extract and parse that substring
     """
     if not text:
         return {}
     
-    # Find first '{' and last '}'
     first_brace = text.find('{')
     last_brace = text.rfind('}')
     
@@ -50,8 +114,6 @@ def extract_json_from_response(text: str) -> dict:
         return json.loads(json_str)
     except json.JSONDecodeError as e:
         logger.error(f"JSON parsing failed: {e}")
-        # Try to fix common issues
-        # Remove any trailing commas before } or ]
         json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
         try:
             return json.loads(json_str)
@@ -62,23 +124,56 @@ def extract_json_from_response(text: str) -> dict:
 def sanitize_for_xml(text: str) -> str:
     """
     Sanitize text for safe inclusion in XML-style prompts.
-    Escapes characters that could break XML parsing or enable injection.
     """
     if not text:
         return ""
-    # Escape XML special characters
     text = text.replace("&", "&amp;")
     text = text.replace("<", "&lt;")
     text = text.replace(">", "&gt;")
-    # Limit length to prevent token abuse
     return text[:2000]
+
+
+def pre_detect_hiring_intent(post_text: str) -> Tuple[str, bool, bool]:
+    """
+    Quick keyword-based pre-detection of hiring intent.
+    This helps guide the AI and catch obvious cases.
+    
+    Returns:
+        (hint: str, is_likely_hiring: bool, is_likely_job_seeker: bool)
+    """
+    text_lower = post_text.lower()
+    
+    hiring_score = 0
+    job_seeker_score = 0
+    matched_hiring = []
+    matched_seeker = []
+    
+    for keyword in HIRING_KEYWORDS:
+        if keyword in text_lower:
+            hiring_score += 1
+            matched_hiring.append(keyword)
+    
+    for keyword in JOB_SEEKER_KEYWORDS:
+        if keyword in text_lower:
+            job_seeker_score += 1
+            matched_seeker.append(keyword)
+    
+    # Determine intent
+    if job_seeker_score >= 2:
+        return f"JOB_SEEKER (matched: {matched_seeker[:3]})", False, True
+    elif hiring_score >= 2:
+        return f"LIKELY_HIRING (matched: {matched_hiring[:3]})", True, False
+    elif hiring_score == 1:
+        return f"POTENTIAL_HIRING (matched: {matched_hiring})", True, False
+    else:
+        return "UNCLEAR", False, False
 
 
 class LinkedInIntelligenceService:
     """
     AI service for analyzing LinkedIn posts and generating personalized DMs.
     
-    Two main functions:
+    Three main functions:
     1. analyze_post() - Extract hiring signals, roles, pain points (no DM)
     2. generate_dm() - Create personalized LinkedIn DM message
     3. analyze_and_generate_dm() - Combined for efficiency when both needed
@@ -88,8 +183,8 @@ class LinkedInIntelligenceService:
         self.api_key = os.getenv("GEMINI_API_KEY")
         self.client = None
         self.model_name = GEMINI_MODEL_NAME
+        self.last_api_call_time = 0  # For rate limiting
         
-        # Safe initialization - don't crash if key is missing
         if self.api_key:
             try:
                 self.client = genai.Client(api_key=self.api_key)
@@ -100,8 +195,75 @@ class LinkedInIntelligenceService:
             logger.warning("GEMINI_API_KEY is missing - AI features will use fallbacks")
 
     def _is_available(self) -> bool:
-        """Check if AI service is available"""
         return self.client is not None
+
+    async def _rate_limited_generate(self, prompt: str, use_json_mode: bool = True):
+        """
+        Rate-limited API call with retry logic.
+        
+        - Enforces minimum delay between API calls
+        - Retries on 429 errors with exponential backoff
+        - Returns None if all retries fail
+        """
+        if not self._is_available():
+            return None
+        
+        # Enforce rate limit delay
+        now = time.time()
+        elapsed = now - self.last_api_call_time
+        if elapsed < RATE_LIMIT_DELAY_SECONDS:
+            wait_time = RATE_LIMIT_DELAY_SECONDS - elapsed
+            logger.info(f"⏱️ Rate limiting: waiting {wait_time:.1f}s before next API call")
+            await asyncio.sleep(wait_time)
+        
+        # Retry logic
+        for attempt in range(MAX_RETRIES):
+            try:
+                self.last_api_call_time = time.time()
+                
+                if use_json_mode:
+                    config = types.GenerateContentConfig(
+                        response_mime_type="application/json"
+                    )
+                    response = await asyncio.wait_for(
+                        self.client.aio.models.generate_content(
+                            model=self.model_name,
+                            contents=prompt,
+                            config=config
+                        ),
+                        timeout=TIMEOUT_GEMINI_AI
+                    )
+                else:
+                    response = await asyncio.wait_for(
+                        self.client.aio.models.generate_content(
+                            model=self.model_name,
+                            contents=prompt
+                        ),
+                        timeout=TIMEOUT_GEMINI_AI
+                    )
+                
+                return response
+                
+            except Exception as e:
+                error_str = str(e)
+                
+                # Check if it's a rate limit error
+                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                    retry_delay = RETRY_BASE_DELAY_SECONDS * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"⚠️ Rate limited (429). Retry {attempt + 1}/{MAX_RETRIES} in {retry_delay}s")
+                    
+                    if attempt < MAX_RETRIES - 1:
+                        await asyncio.sleep(retry_delay)
+                        continue
+                    else:
+                        logger.error("❌ Max retries reached for rate limit")
+                        return None
+                else:
+                    # Other error - don't retry
+                    logger.error(f"❌ API error: {e}")
+                    return None
+        
+        return None
 
     async def analyze_post(
         self, 
@@ -112,33 +274,32 @@ class LinkedInIntelligenceService:
         """
         Analyze a LinkedIn post for hiring signals.
         Does NOT generate DM (saves tokens when DM not needed).
-        
-        Args:
-            post_data: Full post object from Apify
-            author_name: Name of the post author
-            author_headline: Author's LinkedIn headline
-            
-        Returns:
-            dict with hiring_signal, hiring_roles, pain_points, ai_variables
         """
         if not self._is_available():
             return self._get_fallback_analysis(author_name, include_dm=False)
         
-        # Sanitize user data
-        post_text = sanitize_for_xml(
-            post_data.get("text", "") or post_data.get("content", {}).get("text", "")
-        )
+        post_text = post_data.get("text", "") or post_data.get("content", {}).get("text", "")
         hashtags = post_data.get("hashtags", [])
         posted_at = post_data.get("posted_at", {}).get("date", "recently")
         
         if not post_text:
             return self._get_fallback_analysis(author_name, include_dm=False)
 
-        # Structured prompt with XML delimiters (ANALYSIS ONLY - no DM)
+        # Pre-detection hint for AI
+        intent_hint, is_likely_hiring, is_job_seeker = pre_detect_hiring_intent(post_text)
+        
+        # Sanitize for prompt
+        safe_text = sanitize_for_xml(post_text)
+
         prompt = f"""
 <context>
-You are analyzing a LinkedIn post to determine if the author is actively hiring.
+You are an expert at detecting hiring posts on LinkedIn.
+Your goal is to identify whether the AUTHOR of this post is ACTIVELY HIRING employees.
 </context>
+
+<pre_analysis>
+Keyword-based pre-detection result: {intent_hint}
+</pre_analysis>
 
 <post_data>
 <author_name>{sanitize_for_xml(author_name)}</author_name>
@@ -146,59 +307,46 @@ You are analyzing a LinkedIn post to determine if the author is actively hiring.
 <posted_at>{sanitize_for_xml(str(posted_at))}</posted_at>
 <hashtags>{sanitize_for_xml(', '.join(hashtags) if hashtags else 'None')}</hashtags>
 <post_content>
-{post_text}
+{safe_text}
 </post_content>
 </post_data>
 
-<instructions>
-Analyze the post and determine:
+<detection_rules>
+SET hiring_signal = TRUE if the post shows:
+1. "We're Hiring", "Hiring Now", "Urgent Hiring", "Join Our Team"
+2. Specific job position with location, salary, or requirements
+3. "Looking for [Role]", "Need [Role]", "Open Position for [Role]"
+4. Contact info (email/phone) for applying
+5. Hashtags like #Hiring, #JobOpening, #WeAreHiring
 
-1. hiring_signal (boolean): Is this a HIRING post?
-   - TRUE: Company is actively looking to hire (phrases like "we're hiring", "open positions", "join our team")
-   - FALSE: Job seeker looking for work, someone announcing they joined a company, or just thought leadership
-
-2. hiring_roles (string): What specific roles are they hiring for?
-   - Only populate if hiring_signal is true
-   - Format: "Role 1, Role 2, Role 3"
-   - If not hiring, return empty string ""
-
-3. pain_points (string): What business challenge might they have?
-   - Brief description based on the post content
-
-4. key_competencies (string): Skills or tools mentioned in the post
-
-5. standardized_persona (string): Classify the author as one of:
-   "HR / TA", "Founder", "Recruiter", "Operations", "Tech", "Sales / Marketing", "Other"
-</instructions>
+SET hiring_signal = FALSE if:
+1. The AUTHOR is LOOKING FOR A JOB (job seeker, not employer)
+   - e.g., "I am looking for a job", "Dear Hiring Team, please consider me"
+   - e.g., "Open to work", "Available for opportunities"
+2. Someone announcing they JOINED a company (not hiring)
+3. Thought leadership content about industry topics
+4. Panel discussions, conferences, or events
+5. Company news that doesn't include active hiring
+</detection_rules>
 
 <output_format>
-Return ONLY a valid JSON object with these exact keys:
 {{
     "hiring_signal": true/false,
-    "hiring_roles": "string",
-    "pain_points": "string",
-    "key_competencies": "string",
-    "standardized_persona": "string"
+    "hiring_roles": "Role 1, Role 2" (only if hiring) or "",
+    "pain_points": "Business challenge description",
+    "key_competencies": "Skills/tools mentioned",
+    "standardized_persona": "HR / TA" or "Founder" or "Recruiter" or "Operations" or "Tech" or "Sales / Marketing" or "Other",
+    "detection_reasoning": "Brief explanation of why hiring_signal is true/false"
 }}
 </output_format>
 """
 
         try:
-            # Configure for JSON response
-            config = types.GenerateContentConfig(
-                response_mime_type="application/json"
-            )
+            response = await self._rate_limited_generate(prompt, use_json_mode=True)
             
-            response = await asyncio.wait_for(
-                self.client.aio.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt,
-                    config=config
-                ),
-                timeout=TIMEOUT_GEMINI_AI
-            )
+            if not response:
+                return self._get_fallback_analysis(author_name, include_dm=False)
             
-            # Robust JSON extraction
             analysis = extract_json_from_response(response.text)
             
             if not analysis:
@@ -227,16 +375,6 @@ Return ONLY a valid JSON object with these exact keys:
     ) -> str:
         """
         Generate ONLY the DM message (when analysis already exists).
-        Saves tokens by not re-analyzing the post.
-        
-        Args:
-            post_data: Post object from Apify
-            author_name: Name of the author
-            hiring_roles: Pre-analyzed hiring roles (optional)
-            pain_points: Pre-analyzed pain points (optional)
-            
-        Returns:
-            str: Personalized DM message (max 300 chars)
         """
         if not self._is_available():
             return self._get_fallback_dm(author_name)
@@ -246,7 +384,7 @@ Return ONLY a valid JSON object with these exact keys:
         
         prompt = f"""
 <context>
-You are writing a LinkedIn connection request message. Keep it under 300 characters.
+You are writing a LinkedIn connection request message. Keep it under 400 characters.
 </context>
 
 <recipient>
@@ -275,16 +413,13 @@ Return ONLY the message text. No quotes, no explanation, just the message.
 """
 
         try:
-            response = await asyncio.wait_for(
-                self.client.aio.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt
-                ),
-                timeout=TIMEOUT_GEMINI_AI
-            )
+            response = await self._rate_limited_generate(prompt, use_json_mode=False)
+            
+            if not response:
+                return self._get_fallback_dm(author_name)
             
             dm = response.text.strip().strip('"').strip("'")
-            return dm[:400]  # Ensure under LinkedIn limit
+            return dm[:400]
             
         except Exception as e:
             logger.error(f"DM Generation Failed: {e}")
@@ -298,23 +433,11 @@ Return ONLY the message text. No quotes, no explanation, just the message.
     ) -> dict:
         """
         Combined analysis: Analyze post AND generate personalized DM in one call.
-        More efficient when both are needed.
-        
-        Args:
-            post_data: Full post object from Apify
-            author_name: Name of the post author
-            author_headline: Author's LinkedIn headline
-            
-        Returns:
-            dict with hiring_signal, hiring_roles, pain_points, ai_variables, linkedin_dm
         """
         if not self._is_available():
             return self._get_fallback_analysis(author_name, include_dm=True)
         
-        # Sanitize user data
-        post_text = sanitize_for_xml(
-            post_data.get("text", "") or post_data.get("content", {}).get("text", "")
-        )
+        post_text = post_data.get("text", "") or post_data.get("content", {}).get("text", "")
         hashtags = post_data.get("hashtags", [])
         posted_at = post_data.get("posted_at", {}).get("date", "recently")
         first_name = author_name.split()[0] if author_name else "there"
@@ -322,11 +445,20 @@ Return ONLY the message text. No quotes, no explanation, just the message.
         if not post_text:
             return self._get_fallback_analysis(author_name, include_dm=True)
 
-        # Combined prompt with XML structure
+        # Pre-detection hint for AI
+        intent_hint, is_likely_hiring, is_job_seeker = pre_detect_hiring_intent(post_text)
+        
+        # Sanitize for prompt
+        safe_text = sanitize_for_xml(post_text)
+
         prompt = f"""
 <context>
-You are a Senior SDR analyzing a LinkedIn post and creating a personalized connection message.
+You are an expert SDR analyzing a LinkedIn post and creating a personalized connection message.
 </context>
+
+<pre_analysis>
+Keyword-based pre-detection: {intent_hint}
+</pre_analysis>
 
 <post_data>
 <author_name>{sanitize_for_xml(author_name)}</author_name>
@@ -335,65 +467,67 @@ You are a Senior SDR analyzing a LinkedIn post and creating a personalized conne
 <posted_at>{sanitize_for_xml(str(posted_at))}</posted_at>
 <hashtags>{sanitize_for_xml(', '.join(hashtags) if hashtags else 'None')}</hashtags>
 <post_content>
-{post_text}
+{safe_text}
 </post_content>
 </post_data>
 
-<instructions>
-PART 1 - ANALYSIS:
-Determine if this is a hiring post and extract key information.
+<detection_rules>
+HIRING SIGNAL DETECTION - Be accurate!
 
-hiring_signal: TRUE only if company is actively hiring. FALSE if:
-- Author is a job seeker
-- Author just joined a company
-- Just thought leadership without hiring intent
+SET hiring_signal = TRUE when the post:
+✅ Contains "We're Hiring", "Hiring Now", "Urgent Hiring", "Join Our Team"
+✅ Lists a specific job position with requirements
+✅ Uses format like "Position:", "Location:", "Experience:", "Salary:"
+✅ Provides contact email/phone for applications
+✅ Has hashtags: #Hiring, #WeAreHiring, #JobOpening, #Vacancy
+✅ Says "Looking for [Role]", "Need a [Role]", "Seeking [Role]"
 
-PART 2 - DM MESSAGE:
-Write a LinkedIn connection request message (under 300 chars) that:
+SET hiring_signal = FALSE when:
+❌ Author is a JOB SEEKER looking for employment
+   Examples: "I am looking for a job", "Dear Hiring Team", "Open to work"
+❌ Someone announcing they JOINED a company
+❌ Thought leadership, panel discussions, conferences
+❌ Industry commentary without hiring intent
+❌ Just mentioning industry (Automobile, Tech) without actual job post
+</detection_rules>
+
+<dm_instructions>
+Write a LinkedIn connection message (max 400 chars) that:
 - Uses casual professional tone
-- References something specific from their post
+- References something SPECIFIC from their post
 - Has a soft call-to-action
 - Does NOT sound salesy
 - Does NOT use clichés like "I hope this finds you well"
-</instructions>
+</dm_instructions>
 
 <output_format>
 Return ONLY valid JSON:
 {{
     "hiring_signal": true/false,
-    "hiring_roles": "Role 1, Role 2" or "",
-    "pain_points": "Brief challenge description",
+    "hiring_roles": "Role 1, Role 2" (if hiring) or "",
+    "pain_points": "Business challenge",
     "key_competencies": "Skills mentioned",
     "standardized_persona": "HR / TA" or "Founder" or "Recruiter" or "Operations" or "Tech" or "Other",
-    "linkedin_dm": "Your personalized message here (max 400 chars)"
+    "detection_reasoning": "Why hiring_signal is true/false",
+    "linkedin_dm": "Your personalized message (max 400 chars)"
 }}
 </output_format>
 """
 
         try:
-            config = types.GenerateContentConfig(
-                response_mime_type="application/json"
-            )
+            response = await self._rate_limited_generate(prompt, use_json_mode=True)
             
-            response = await asyncio.wait_for(
-                self.client.aio.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt,
-                    config=config
-                ),
-                timeout=TIMEOUT_GEMINI_AI
-            )
+            if not response:
+                return self._get_fallback_analysis(author_name, include_dm=True)
             
-            # Robust JSON extraction
             analysis = extract_json_from_response(response.text)
             
             if not analysis:
                 return self._get_fallback_analysis(author_name, include_dm=True)
             
-            # Ensure DM is under limit
             dm = analysis.get("linkedin_dm", self._get_fallback_dm(author_name))
-            if len(dm) > 300:
-                dm = dm[:297] + "..."
+            if len(dm) > 400:
+                dm = dm[:397] + "..."
             
             return {
                 "hiring_signal": analysis.get("hiring_signal", False),
@@ -429,6 +563,72 @@ Return ONLY valid JSON:
         first_name = author_name.split()[0] if author_name else "there"
         return f"Hi {first_name}! Came across your profile and would love to connect. Always great to expand the network with professionals in similar spaces!"
 
+    async def batch_analyze_posts(
+        self,
+        leads: list[dict]
+    ) -> list[dict]:
+        """
+        Process multiple leads with AI analysis.
+        
+        - On FREE tier: Sequential processing with delays
+        - On PAID/ENTERPRISE tier: Parallel processing
+        
+        Args:
+            leads: List of lead dicts with 'post_data', 'full_name', 'headline'
+            
+        Returns:
+            List of enriched lead dicts with AI analysis added
+        """
+        results = []
+        
+        if ENABLE_PARALLEL:
+            # Parallel processing for paid tiers
+            logger.info(f"🚀 Parallel processing {len(leads)} leads (PAID tier)")
+            
+            async def analyze_one(lead):
+                post_data = lead.get("post_data", [{}])[0] if lead.get("post_data") else {}
+                ai_result = await self.analyze_and_generate_dm(
+                    post_data=post_data,
+                    author_name=lead.get("full_name", ""),
+                    author_headline=lead.get("headline", "")
+                )
+                return {**lead, **ai_result}
+            
+            # Process all in parallel
+            results = await asyncio.gather(
+                *[analyze_one(lead) for lead in leads],
+                return_exceptions=True
+            )
+            
+            # Handle any exceptions
+            final_results = []
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    logger.error(f"Lead {i} failed: {result}")
+                    final_results.append({**leads[i], **self._get_fallback_analysis(leads[i].get("full_name", ""), include_dm=True)})
+                else:
+                    final_results.append(result)
+            return final_results
+            
+        else:
+            # Sequential processing for free tier
+            logger.info(f"⏱️ Sequential processing {len(leads)} leads (FREE tier, ~{len(leads) * RATE_LIMIT_DELAY_SECONDS}s total)")
+            
+            for i, lead in enumerate(leads):
+                logger.info(f"   Processing lead {i+1}/{len(leads)}: {lead.get('full_name', 'Unknown')}")
+                
+                post_data = lead.get("post_data", [{}])[0] if lead.get("post_data") else {}
+                ai_result = await self.analyze_and_generate_dm(
+                    post_data=post_data,
+                    author_name=lead.get("full_name", ""),
+                    author_headline=lead.get("headline", "")
+                )
+                
+                results.append({**lead, **ai_result})
+            
+            return results
+
 
 # Singleton instance for easy import
 linkedin_intelligence_service = LinkedInIntelligenceService()
+

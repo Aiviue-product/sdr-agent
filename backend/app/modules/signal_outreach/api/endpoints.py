@@ -254,3 +254,181 @@ async def get_available_keywords(db: AsyncSession = Depends(get_db)):
     repo = LinkedInLeadRepository(db)
     keywords = await repo.get_unique_keywords()
     return LinkedInKeywordsResponse(keywords=keywords)
+
+
+# ============================================
+# REFRESH ANALYSIS ENDPOINTS
+# ============================================
+
+@router.post("/leads/{lead_id}/refresh")
+async def refresh_single_lead_analysis(
+    lead_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Re-run AI analysis on a single lead using existing post_data.
+    
+    USE CASE: When AI prompts are improved, refresh existing leads
+    without re-scraping from LinkedIn (saves Apify credits).
+    
+    Process:
+    1. Fetch lead from database (with existing post_data)
+    2. Re-run AI analysis on the first post
+    3. Update lead with new hiring_signal, hiring_roles, pain_points, linkedin_dm
+    """
+    logger.info(f"🔄 Refreshing analysis for lead {lead_id}")
+    
+    repo = LinkedInLeadRepository(db)
+    
+    # 1. Get existing lead
+    lead = await repo.get_by_id(lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    
+    # 2. Parse post_data
+    post_data = lead.get("post_data")
+    if isinstance(post_data, str):
+        try:
+            import json
+            post_data = json.loads(post_data)
+        except:
+            post_data = []
+    
+    if not post_data or len(post_data) == 0:
+        raise HTTPException(
+            status_code=400, 
+            detail="No post data available for this lead. Cannot refresh analysis."
+        )
+    
+    # 3. Run AI analysis on first post (most recent)
+    first_post = post_data[0] if isinstance(post_data, list) else post_data
+    
+    try:
+        ai_result = await linkedin_intelligence_service.analyze_and_generate_dm(
+            post_data=first_post,
+            author_name=lead.get("full_name", ""),
+            author_headline=lead.get("headline", "")
+        )
+    except Exception as e:
+        logger.error(f"AI analysis failed for lead {lead_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
+    
+    # 4. Update lead in database
+    await repo.update_ai_enrichment(
+        lead_id=lead_id,
+        hiring_signal=ai_result.get("hiring_signal", False),
+        hiring_roles=ai_result.get("hiring_roles", ""),
+        pain_points=ai_result.get("pain_points", ""),
+        ai_variables=ai_result.get("ai_variables", {}),
+        linkedin_dm=ai_result.get("linkedin_dm", "")
+    )
+    
+    logger.info(f"✅ Refresh complete for lead {lead_id}: hiring_signal={ai_result.get('hiring_signal')}")
+    
+    return {
+        "success": True,
+        "message": f"Analysis refreshed for {lead.get('full_name')}",
+        "lead_id": lead_id,
+        "hiring_signal": ai_result.get("hiring_signal", False),
+        "hiring_roles": ai_result.get("hiring_roles", ""),
+        "linkedin_dm": ai_result.get("linkedin_dm", "")[:100] + "..." if len(ai_result.get("linkedin_dm", "")) > 100 else ai_result.get("linkedin_dm", "")
+    }
+
+
+from pydantic import BaseModel
+from typing import List
+
+class BulkRefreshRequest(BaseModel):
+    lead_ids: List[int]
+
+
+@router.post("/leads/bulk-refresh")
+async def refresh_bulk_leads_analysis(
+    request: BulkRefreshRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Re-run AI analysis on multiple leads using existing post_data.
+    
+    USE CASE: Bulk refresh after AI prompt improvements.
+    
+    NOTE: On FREE tier (5 req/min), this will be slow (~13s per lead).
+    On PAID tier, parallel processing is enabled.
+    
+    Process:
+    1. Fetch all leads from database
+    2. Re-run AI analysis on each (sequential on free, parallel on paid)
+    3. Update all leads with new analysis
+    """
+    lead_ids = request.lead_ids
+    
+    if not lead_ids:
+        raise HTTPException(status_code=400, detail="No lead IDs provided")
+    
+    if len(lead_ids) > 100:
+        raise HTTPException(status_code=400, detail="Maximum 100 leads per batch")
+    
+    logger.info(f"🔄 Bulk refreshing {len(lead_ids)} leads")
+    
+    repo = LinkedInLeadRepository(db)
+    results = {
+        "success_count": 0,
+        "failed_count": 0,
+        "errors": []
+    }
+    
+    for lead_id in lead_ids:
+        try:
+            # Get lead
+            lead = await repo.get_by_id(lead_id)
+            if not lead:
+                results["failed_count"] += 1
+                results["errors"].append({"lead_id": lead_id, "error": "Not found"})
+                continue
+            
+            # Parse post_data
+            post_data = lead.get("post_data")
+            if isinstance(post_data, str):
+                import json
+                post_data = json.loads(post_data)
+            
+            if not post_data or len(post_data) == 0:
+                results["failed_count"] += 1
+                results["errors"].append({"lead_id": lead_id, "error": "No post data"})
+                continue
+            
+            # Run AI analysis
+            first_post = post_data[0] if isinstance(post_data, list) else post_data
+            
+            ai_result = await linkedin_intelligence_service.analyze_and_generate_dm(
+                post_data=first_post,
+                author_name=lead.get("full_name", ""),
+                author_headline=lead.get("headline", "")
+            )
+            
+            # Update lead
+            await repo.update_ai_enrichment(
+                lead_id=lead_id,
+                hiring_signal=ai_result.get("hiring_signal", False),
+                hiring_roles=ai_result.get("hiring_roles", ""),
+                pain_points=ai_result.get("pain_points", ""),
+                ai_variables=ai_result.get("ai_variables", {}),
+                linkedin_dm=ai_result.get("linkedin_dm", "")
+            )
+            
+            results["success_count"] += 1
+            logger.info(f"   ✅ Lead {lead_id}: hiring_signal={ai_result.get('hiring_signal')}")
+            
+        except Exception as e:
+            results["failed_count"] += 1
+            results["errors"].append({"lead_id": lead_id, "error": str(e)})
+            logger.error(f"   ❌ Lead {lead_id} failed: {e}")
+    
+    logger.info(f"✅ Bulk refresh complete: {results['success_count']} success, {results['failed_count']} failed")
+    
+    return {
+        "success": True,
+        "message": f"Refreshed {results['success_count']} leads, {results['failed_count']} failed",
+        **results
+    }
+
