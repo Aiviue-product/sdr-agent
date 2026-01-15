@@ -24,8 +24,12 @@ ZEROBOUNCE_BULK_VALIDATE_URL = "https://bulkapi.zerobounce.net/v2/validatebatch"
 INSTANTLY_API_URL = "https://api.instantly.ai/api/v2/leads"
 INSTANTLY_BULK_API_URL = "https://api.instantly.ai/api/v2/leads/add"
 
-# Apify LinkedIn Scraper
+# Apify LinkedIn Scraper (for profile posts - email outreach)
 APIFY_LINKEDIN_ACTOR = "apimaestro/linkedin-profile-posts"
+
+# Apify LinkedIn Posts Search (for keyword search - signal outreach)
+APIFY_LINKEDIN_SEARCH_ACTOR = "apimaestro/linkedin-posts-search-scraper-no-cookies"
+TIMEOUT_APIFY_LINKEDIN_SEARCH = 180.0  # Keyword search can be slower
 
 # ============================================
 # FILE PROCESSING
