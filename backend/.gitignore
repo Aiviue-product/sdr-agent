@@ -146,7 +146,7 @@ activemq-data/
 
 # SageMath parsed files
 *.sage.py
-
+scripts/update_unipile_webhook.py  
 # Environments 
 .env 
 .envrc
