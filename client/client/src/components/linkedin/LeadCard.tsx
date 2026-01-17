@@ -38,10 +38,21 @@ export default function LeadCard({
                     className="w-4 h-4 mt-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                 />
 
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden
                     ${lead.is_company ? 'bg-purple-100' : 'bg-blue-100'}`}
                 >
-                    {lead.is_company ? (
+                    {lead.profile_image_url ? (
+                        <img
+                            src={lead.profile_image_url}
+                            alt={lead.full_name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                                // Fallback if image fails to load
+                                (e.target as HTMLImageElement).style.display = 'none';
+                                (e.target as HTMLImageElement).parentElement?.classList.add(lead.is_company ? 'bg-purple-100' : 'bg-blue-100');
+                            }}
+                        />
+                    ) : lead.is_company ? (
                         <Building2 className="w-5 h-5 text-purple-600" />
                     ) : (
                         <User className="w-5 h-5 text-blue-600" />

@@ -19,6 +19,7 @@ interface ActivityModalProps {
     hasMore: boolean;
     currentPage: number;
     onLoadMore: () => void;
+    leadName?: string; // If provided, show lead-specific title
 }
 
 export default function ActivityModal({
@@ -28,7 +29,8 @@ export default function ActivityModal({
     loading,
     hasMore,
     currentPage,
-    onLoadMore
+    onLoadMore,
+    leadName
 }: ActivityModalProps) {
     if (!isOpen) return null;
 
@@ -39,9 +41,7 @@ export default function ActivityModal({
                 <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                         <Activity className="w-5 h-5 text-purple-600" />
-                        {activities.length > 0 && activities[0].lead_id && activities.every(a => a.lead_id === activities[0].lead_id)
-                            ? `Activity: ${activities[0].lead_name}`
-                            : 'Global Activity Timeline'}
+                        {leadName ? `Activity: ${leadName}` : 'Global Activity Timeline'}
                     </h2>
                     <button
                         onClick={onClose}

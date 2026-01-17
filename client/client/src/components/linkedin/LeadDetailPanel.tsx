@@ -11,7 +11,7 @@ interface LeadDetailPanelProps {
     onRefresh: () => void;
     onSendConnection: () => void;
     onSendDM: () => void;
-    onOpenActivity: (leadId?: number) => void;
+    onOpenActivity: (leadId?: number, leadName?: string) => void;
     onOpenProfile: () => void;
     onCopyDm: () => void;
     isRefreshing: boolean;
@@ -100,7 +100,7 @@ export default function LeadDetailPanel({
                                 onRefresh={onRefresh}
                                 onSendConnection={onSendConnection}
                                 onSendDM={onSendDM}
-                                onOpenActivity={() => leadDetail && onOpenActivity(leadDetail.id)}
+                                onOpenActivity={() => leadDetail && onOpenActivity(leadDetail.id, leadDetail.full_name)}
                                 isRefreshing={isRefreshing}
                                 isSendingConnection={isSendingConnection}
                                 isSendingDM={isSendingDM}

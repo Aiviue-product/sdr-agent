@@ -59,6 +59,7 @@ export default function LinkedInSignalsPage() {
     const [rateLimits, setRateLimits] = useState<RateLimitStatus | null>(null);
     const [showActivityModal, setShowActivityModal] = useState(false);
     const [activeActivityLeadId, setActiveActivityLeadId] = useState<number | null>(null);
+    const [activeActivityLeadName, setActiveActivityLeadName] = useState<string | undefined>(undefined);
     const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(false);
     const [activityPage, setActivityPage] = useState(1);
@@ -363,8 +364,13 @@ export default function LinkedInSignalsPage() {
         }
     };
 
-    const openActivityModal = async (leadId?: number) => {
+    const openActivityModal = async (leadId?: number, leadName?: string) => {
+        // Clear stale data immediately so user sees loading state, not old data
+        setActivities([]);
+        setActivityPage(1);
+        setHasMoreActivities(false);
         setActiveActivityLeadId(leadId || null);
+        setActiveActivityLeadName(leadName);
         setShowActivityModal(true);
         await loadActivities(1, leadId);
     };
@@ -439,12 +445,14 @@ export default function LinkedInSignalsPage() {
                 onClose={() => {
                     setShowActivityModal(false);
                     setActiveActivityLeadId(null);
+                    setActiveActivityLeadName(undefined);
                 }}
                 activities={activities}
                 loading={loadingActivities}
                 hasMore={hasMoreActivities}
                 currentPage={activityPage}
                 onLoadMore={() => loadActivities(activityPage + 1, activeActivityLeadId)}
+                leadName={activeActivityLeadName}
             />
         </div>
     );
