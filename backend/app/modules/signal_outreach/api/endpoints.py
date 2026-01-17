@@ -116,13 +116,15 @@ async def get_linkedin_leads(
             "hiring_signal": lead.get("hiring_signal", False),
             "hiring_roles": lead.get("hiring_roles"),
             "is_dm_sent": lead.get("is_dm_sent", False),
+            "connection_status": lead.get("connection_status", "none"),
+            "dm_status": lead.get("dm_status", "not_sent"),
             "created_at": str(lead["created_at"]) if lead.get("created_at") else None
         })
     
     return {
         "leads": leads_list,
         "total_count": total_count,
-        "skip": skip,
+        "skip": skip, 
         "limit": limit,
         "available_keywords": unique_keywords
     }
@@ -183,6 +185,8 @@ async def get_linkedin_lead_detail(
         "ai_variables": ai_variables,
         "linkedin_dm": lead.get("linkedin_dm"),
         "is_dm_sent": lead.get("is_dm_sent", False),
+        "connection_status": lead.get("connection_status", "none"),
+        "dm_status": lead.get("dm_status", "not_sent"),
         "dm_sent_at": str(lead["dm_sent_at"]) if lead.get("dm_sent_at") else None,
         "created_at": str(lead["created_at"]) if lead.get("created_at") else None,
         "updated_at": str(lead["updated_at"]) if lead.get("updated_at") else None

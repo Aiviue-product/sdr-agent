@@ -95,6 +95,7 @@ export default function LeadDetailPanel({
 
                         <div className="flex-shrink-0">
                             <LeadActionButtons
+                                lead={leadDetail}
                                 onOpenProfile={onOpenProfile}
                                 onRefresh={onRefresh}
                                 onSendConnection={onSendConnection}

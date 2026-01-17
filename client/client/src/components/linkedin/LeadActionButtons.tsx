@@ -1,8 +1,10 @@
 'use client';
 
 import { Activity, ExternalLink, RefreshCw, Send, UserPlus } from 'lucide-react';
+import { LinkedInLeadDetail } from '../../types/linkedin';
 
 interface LeadActionButtonsProps {
+    lead: LinkedInLeadDetail | null;
     onOpenProfile: () => void;
     onRefresh: () => void;
     onSendConnection: () => void;
@@ -14,6 +16,7 @@ interface LeadActionButtonsProps {
 }
 
 export default function LeadActionButtons({
+    lead,
     onOpenProfile,
     onRefresh,
     onSendConnection,
@@ -23,6 +26,10 @@ export default function LeadActionButtons({
     isSendingConnection,
     isSendingDM
 }: LeadActionButtonsProps) {
+    const isConnected = lead?.connection_status === 'connected';
+    const isPending = lead?.connection_status === 'pending';
+    const isDmSent = lead?.is_dm_sent;
+
     return (
         <div className="flex gap-2 w-full sm:w-auto">
             <button
@@ -48,28 +55,34 @@ export default function LeadActionButtons({
 
             <button
                 onClick={onSendConnection}
-                disabled={isSendingConnection}
+                disabled={isSendingConnection || isConnected || isPending}
                 className={`flex items-center justify-center gap-1.5 px-4 py-2 text-sm rounded-lg font-medium transition-all whitespace-nowrap
                     ${isSendingConnection
                         ? 'bg-gray-100 text-gray-400 cursor-wait'
-                        : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 shadow-sm hover:shadow-md'
+                        : isConnected
+                            ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                            : isPending
+                                ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                                : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 shadow-sm hover:shadow-md'
                     }`}
             >
                 <UserPlus className={`w-3.5 h-3.5 flex-shrink-0 ${isSendingConnection ? 'animate-pulse' : ''}`} />
-                {isSendingConnection ? 'Sending...' : 'Connect'}
+                {isSendingConnection ? 'Sending...' : isConnected ? 'Connected' : isPending ? 'Pending' : 'Connect'}
             </button>
 
             <button
                 onClick={onSendDM}
-                disabled={isSendingDM}
+                disabled={isSendingDM || isDmSent}
                 className={`flex items-center justify-center gap-1.5 px-4 py-2 text-sm rounded-lg font-medium transition-all whitespace-nowrap
                     ${isSendingDM
                         ? 'bg-gray-100 text-gray-400 cursor-wait'
-                        : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 shadow-sm hover:shadow-md'
+                        : isDmSent
+                            ? 'bg-green-50 text-green-600 border border-green-200'
+                            : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 shadow-sm hover:shadow-md'
                     }`}
             >
                 <Send className={`w-3.5 h-3.5 flex-shrink-0 ${isSendingDM ? 'animate-pulse' : ''}`} />
-                {isSendingDM ? 'Sending...' : 'Send DM'}
+                {isSendingDM ? 'Sending...' : isDmSent ? 'DM Sent' : 'Send DM'}
             </button>
 
             <button

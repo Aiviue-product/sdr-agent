@@ -14,6 +14,8 @@ export interface LinkedInLead {
     hiring_roles?: string;
     pain_points?: string;
     is_dm_sent: boolean;
+    connection_status?: 'none' | 'pending' | 'connected' | 'rejected';
+    dm_status?: 'not_sent' | 'sent' | 'replied';
     created_at?: string;
 }
 

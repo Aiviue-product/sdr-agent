@@ -524,15 +524,25 @@ async def unipile_webhook(
         data = await request.json()
         event_type = data.get("event")
         
+        print(f"\n[WEBHOOK] 📬 Received event: {event_type}")
+        print(f"[WEBHOOK] 📄 Raw data: {data}\n")
+        
         logger.info(f"📬 Webhook received: {event_type}")
         
         if event_type == "message_received":
-            # Find lead by attendee_provider_id
-            attendees = data.get("attendees", [])
-            for attendee in attendees:
-                if attendee.get("is_self") == 0:
-                    provider_id = attendee.get("attendee_provider_id")
-                    
+            # Only process if we are NOT the sender (it's a reply)
+            if data.get("is_sender") is False:
+                sender = data.get("sender", {})
+                provider_id = sender.get("attendee_provider_id")
+                
+                # Get message text (handle string or object structure)
+                message_data = data.get("message", "")
+                message_text = message_data if isinstance(message_data, str) else message_data.get("text", "")
+                
+                print(f"[WEBHOOK] 👤 Sender Provider ID: {provider_id}")
+                print(f"[WEBHOOK] 💬 Message: {message_text}")
+                
+                if provider_id:
                     result = await db.execute(
                         select(LinkedInLead).where(LinkedInLead.provider_id == provider_id)
                     )
@@ -549,12 +559,14 @@ async def unipile_webhook(
                             db=db,
                             lead_id=lead.id,
                             activity_type="dm_replied",
-                            message=data.get("message", {}).get("text", ""),
+                            message=message_text,
                             lead_name=lead.full_name,
                             lead_linkedin_url=lead.linkedin_url
                         )
                         
                         logger.info(f"✅ Lead {lead.id} marked as replied")
+                    else:
+                        print(f"[WEBHOOK] ⚠️ No lead found in DB with provider_id: {provider_id}")
         
         elif event_type == "new_relation":
             # Connection accepted
@@ -608,5 +620,6 @@ async def unipile_webhook(
         return {"status": "ok"}
         
     except Exception as e:
+        print(f"\n[WEBHOOK] ❌ Error processing webhook: {str(e)}\n")
         logger.error(f"❌ Webhook error: {str(e)}")
         return {"status": "error", "message": str(e)}

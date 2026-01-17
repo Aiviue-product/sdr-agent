@@ -54,8 +54,18 @@ export default function LeadCard({
                         {lead.hiring_signal && (
                             <Rocket className="w-4 h-4 text-green-600 fill-green-100 flex-shrink-0" />
                         )}
+                        {lead.connection_status === 'pending' && (
+                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold flex-shrink-0">
+                                Pending
+                            </span>
+                        )}
+                        {lead.connection_status === 'connected' && (
+                            <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold flex-shrink-0">
+                                Connected
+                            </span>
+                        )}
                         {lead.is_dm_sent && (
-                            <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
+                            <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold flex-shrink-0">
                                 Sent ✓
                             </span>
                         )}
