@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.shared.core.config import settings
-
-# Import the combined module router
+from app.modules.signal_outreach.api import router as signal_outreach_router
 from app.modules.email_outreach.api import router as email_outreach_router
 
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -24,9 +23,8 @@ app.add_middleware(
 # Email Outreach Module (Leads, Campaign, Enrichment, File Upload)
 app.include_router(email_outreach_router, prefix="/api/v1")
 
-# Future: Signal Outreach Module
-# from app.modules.signal_outreach.api import router as signal_outreach_router
-# app.include_router(signal_outreach_router, prefix="/api/v1/signals")
+# Signal Outreach Module (LinkedIn keyword search, AI analysis, DM generation)
+app.include_router(signal_outreach_router, prefix="/api/v1") 
 
 
 @app.get("/")

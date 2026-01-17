@@ -13,25 +13,37 @@ echo "=========================================="
 echo ""
 
 # Navigate to backend directory
-cd "$SCRIPT_DIR/backend"
+cd "$SCRIPT_DIR/backend" || exit
 echo "📂 Working directory: $(pwd)"
 echo ""
 
 # Activate virtual environment
 echo "🔄 Activating virtual environment..."
-source venv/Scripts/activate
+if [ -f "venv/Scripts/activate" ]; then
+    source venv/Scripts/activate
+elif [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+fi
 
 echo "✅ Virtual environment activated!"
-echo "📍 Python: $(which python)"
-echo "🐍 Version: $(python --version)"
 echo ""
 
-# Check database connection
-echo "🔌 Checking database connection..."
-python -c "from app.db.session import engine; print('✅ Database connection OK!')" 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo "⚠️  Database check skipped (will connect on first request)"
+# Check for ngrok public URL
+echo "🔍 Checking for ngrok tunnel..."
+# Better regex and error handling for curl
+NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | grep -o "https://[a-zA-Z0-9.-]*\.ngrok-free\.app" | head -n 1)
+
+echo "------------------------------------------"
+if [ -n "$NGROK_URL" ]; then
+    echo "🔗 ngrok is ACTIVE!"
+    echo "🌎 Public URL: $NGROK_URL"
+    echo "📡 Webhook URL: $NGROK_URL/api/v1/linkedin/dm/webhook"
+    echo ""
+    echo "✅ TIP: Run 'python scripts/update_unipile_webhook.py' to update Unipile!"
+else
+    echo "⚠️  ngrok not detected. Start it manually if needed: ngrok http 8000"
 fi
+echo "------------------------------------------"
 echo ""
 
 echo "🌐 Starting FastAPI server on http://127.0.0.1:8000"
@@ -40,5 +52,4 @@ echo "=========================================="
 echo ""
 
 # Run the FastAPI server
-uvicorn app.main:app --reload 
- 
+uvicorn app.main:app --reload
