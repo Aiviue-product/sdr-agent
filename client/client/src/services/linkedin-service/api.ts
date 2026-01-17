@@ -157,3 +157,169 @@ export const bulkRefreshLeads = async (leadIds: number[]): Promise<BulkRefreshRe
     return res.json();
 };
 
+
+// ============================================
+// UNIPILE DM ENDPOINTS
+// ============================================
+
+export interface RateLimitStatus {
+    connections_sent_today: number;
+    connections_remaining: number;
+    connections_limit: number;
+    dms_sent_today: number;
+    dms_remaining: number;
+    dms_limit: number;
+}
+
+export interface SendDMResponse {
+    success: boolean;
+    message: string;
+    lead_id: number;
+    dm_status?: string;
+    sent_at?: string;
+    error?: string;
+}
+
+export interface SendConnectionResponse {
+    success: boolean;
+    message: string;
+    lead_id: number;
+    connection_status?: string;
+    invitation_id?: string;
+    sent_at?: string;
+    error?: string;
+}
+
+export interface BulkSendResponse {
+    success: boolean;
+    total: number;
+    successful: number;
+    failed: number;
+    results: Array<{
+        lead_id: number;
+        success: boolean;
+        message: string;
+        error?: string;
+    }>;
+}
+
+export interface ActivityItem {
+    id: number;
+    lead_id: number;
+    activity_type: string;
+    message?: string;
+    lead_name?: string;
+    lead_linkedin_url?: string;
+    created_at: string;
+}
+
+export interface ActivitiesResponse {
+    activities: ActivityItem[];
+    total_count: number;
+    page: number;
+    limit: number;
+    has_more: boolean;
+}
+
+/**
+ * Get current rate limit status for LinkedIn operations.
+ */
+export const getRateLimits = async (): Promise<RateLimitStatus> => {
+    const res = await fetch(`${API_BASE_URL}/api/v1/linkedin/dm/rate-limits`);
+
+    if (!res.ok) {
+        throw new Error('Failed to get rate limits');
+    }
+
+    return res.json();
+};
+
+/**
+ * Send DM to a single lead.
+ * If not connected, will return error suggesting to send connection first.
+ */
+export const sendDM = async (leadId: number, message?: string): Promise<SendDMResponse> => {
+    const res = await fetch(`${API_BASE_URL}/api/v1/linkedin/dm/leads/${leadId}/send-dm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+    });
+
+    if (!res.ok && res.status !== 422) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Failed to send DM');
+    }
+
+    return res.json();
+};
+
+/**
+ * Send connection request to a lead.
+ */
+export const sendConnectionRequest = async (leadId: number, message?: string): Promise<SendConnectionResponse> => {
+    const res = await fetch(`${API_BASE_URL}/api/v1/linkedin/dm/leads/${leadId}/send-connection`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+    });
+
+    if (!res.ok && res.status !== 422) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Failed to send connection');
+    }
+
+    return res.json();
+};
+
+/**
+ * Bulk send DMs or connection requests to multiple leads.
+ */
+export const bulkSend = async (
+    leadIds: number[],
+    sendType: 'dm' | 'connection',
+    message?: string
+): Promise<BulkSendResponse> => {
+    const res = await fetch(`${API_BASE_URL}/api/v1/linkedin/dm/bulk-send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            lead_ids: leadIds,
+            send_type: sendType,
+            message
+        })
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Bulk send failed');
+    }
+
+    return res.json();
+};
+
+/**
+ * Get activity timeline with pagination.
+ */
+export const getActivities = async (
+    page: number = 1,
+    limit: number = 20,
+    activityType?: string,
+    leadId?: number
+): Promise<ActivitiesResponse> => {
+    let url = `${API_BASE_URL}/api/v1/linkedin/dm/activities?page=${page}&limit=${limit}`;
+
+    if (activityType) {
+        url += `&activity_type=${encodeURIComponent(activityType)}`;
+    }
+    if (leadId) {
+        url += `&lead_id=${leadId}`;
+    }
+
+    const res = await fetch(url);
+
+    if (!res.ok) {
+        throw new Error('Failed to fetch activities');
+    }
+
+    return res.json();
+};

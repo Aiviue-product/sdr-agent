@@ -157,7 +157,7 @@ class UnipileService:
                     json=payload
                 )
                 
-                if response.status_code == 200:
+                if response.status_code in (200, 201):
                     data = response.json()
                     logger.info(f"✅ Connection request sent: {data.get('invitation_id')}")
                     return {
@@ -232,7 +232,7 @@ class UnipileService:
                     json=payload
                 )
                 
-                if response.status_code == 200:
+                if response.status_code in (200, 201):
                     data = response.json()
                     logger.info(f"✅ DM sent successfully")
                     return {
@@ -297,7 +297,7 @@ class UnipileService:
                     json=payload
                 )
                 
-                if response.status_code == 200:
+                if response.status_code in (200, 201):
                     data = response.json()
                     logger.info(f"✅ Message sent to chat {chat_id}")
                     return {
