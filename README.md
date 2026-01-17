@@ -258,6 +258,11 @@ GEMINI_API_KEY=your_actual_gemini_api_key_here
 
 # PostgreSQL Database URL
 DATABASE_URL=postgresql://username:password@localhost:5432/your_database_name
+
+# Unipile LinkedIn DM API - Get from https://dashboard.unipile.com
+UNIPILE_API_KEY=your_unipile_api_key_here
+UNIPILE_DSN=https://api16.unipile.com:14612
+UNIPILE_ACCOUNT_ID=your_unipile_account_id_here
 ```
 
 #### Where to Get API Keys:
@@ -267,6 +272,7 @@ DATABASE_URL=postgresql://username:password@localhost:5432/your_database_name
 | **Apify** | Web scraping & data extraction | [Apify Console](https://console.apify.com/account/integrations) |
 | **ZeroBounce** | Email verification | [ZeroBounce Dashboard](https://www.zerobounce.net/) |
 | **Google Gemini** | AI-powered enrichment | [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| **Unipile** | LinkedIn DM messaging | [Unipile Dashboard](https://dashboard.unipile.com) |
 
 > ⚠️ **Security Warning:** Never commit your `.env` file to Git! It's already in `.gitignore` for safety.
 

@@ -56,8 +56,17 @@ MAX_SCRAPER_POSTS = 2         # Default posts to scrape per profile
 GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
 # ============================================
-# RATE LIMITING (future use)
+# LINKEDIN / UNIPILE RATE LIMITS
 # ============================================
+LINKEDIN_DAILY_CONNECTION_LIMIT = 25      # Max connection requests per day
+LINKEDIN_DAILY_DM_LIMIT = 150             # Max DMs per day
+LINKEDIN_BULK_DELAY_SECONDS = 5           # Delay between bulk sends
+
+# Unipile API Timeouts
+TIMEOUT_UNIPILE_API = 30.0                # General Unipile API timeout
+TIMEOUT_UNIPILE_PROFILE = 15.0            # Get profile timeout
+TIMEOUT_UNIPILE_MESSAGE = 20.0            # Send message timeout
+
 # ============================================
 # DATABASE POOL SETTINGS
 # ============================================

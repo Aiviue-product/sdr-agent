@@ -61,6 +61,17 @@ class LinkedInLead(Base):
     dm_sent_at = Column(DateTime(timezone=True), nullable=True)  # When DM was sent
     
     # ============================================
+    # UNIPILE INTEGRATION
+    # ============================================
+    provider_id = Column(Text, nullable=True)         # Unipile's LinkedIn ID
+    connection_status = Column(Text, default='none')  # none/pending/connected/rejected
+    connection_sent_at = Column(DateTime(timezone=True), nullable=True)  # When invite sent
+    dm_status = Column(Text, default='not_sent')      # not_sent/sent/replied
+    follow_up_count = Column(BigInteger, default=0)   # How many follow-ups sent
+    next_follow_up_at = Column(DateTime(timezone=True), nullable=True)  # Next scheduled
+    last_reply_at = Column(DateTime(timezone=True), nullable=True)  # When they replied
+    
+    # ============================================
     # TIMESTAMPS
     # ============================================
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -73,6 +84,8 @@ class LinkedInLead(Base):
         Index('idx_linkedin_leads_keyword', 'search_keyword'),
         Index('idx_linkedin_leads_hiring', 'hiring_signal'),
         Index('idx_linkedin_leads_dm_status', 'is_dm_sent'),
+        Index('idx_linkedin_leads_connection_status', 'connection_status'),
+        Index('idx_linkedin_leads_provider_id', 'provider_id'),
     )
 
     def __repr__(self):

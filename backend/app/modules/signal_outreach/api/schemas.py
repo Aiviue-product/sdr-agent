@@ -103,3 +103,104 @@ class LinkedInLeadsListResponse(BaseModel):
 class LinkedInKeywordsResponse(BaseModel):
     """Response for keywords endpoint"""
     keywords: List[str]
+
+
+# ============================================
+# UNIPILE DM SCHEMAS
+# ============================================
+
+class SendDMRequest(BaseModel):
+    """Request to send a DM to a lead"""
+    message: Optional[str] = Field(
+        default=None,
+        description="Custom message to send. If not provided, uses AI-generated DM."
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message": "Hi! I came across your profile and wanted to connect."
+            }
+        }
+
+
+class SendConnectionRequest(BaseModel):
+    """Request to send a connection request"""
+    message: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        description="Connection note (max 300 chars). Optional."
+    )
+
+
+class BulkSendRequest(BaseModel):
+    """Request for bulk DM or connection operations"""
+    lead_ids: List[int] = Field(..., min_length=1, max_length=50)
+    message: Optional[str] = Field(
+        default=None,
+        description="Custom message for all leads. If not provided, uses AI-generated DMs."
+    )
+    send_type: str = Field(
+        default="dm",
+        description="Type of send: 'dm' or 'connection'"
+    )
+
+
+class SendDMResponse(BaseModel):
+    """Response for send DM operation"""
+    success: bool
+    message: str
+    lead_id: int
+    dm_status: Optional[str] = None
+    sent_at: Optional[str] = None
+    error: Optional[str] = None
+
+
+class SendConnectionResponse(BaseModel):
+    """Response for send connection operation"""
+    success: bool
+    message: str
+    lead_id: int
+    connection_status: Optional[str] = None
+    invitation_id: Optional[str] = None
+    sent_at: Optional[str] = None
+    error: Optional[str] = None
+
+
+class BulkSendResponse(BaseModel):
+    """Response for bulk operations"""
+    success: bool
+    total: int
+    successful: int
+    failed: int
+    results: List[dict]
+
+
+class ActivityItem(BaseModel):
+    """Single activity item for timeline"""
+    id: int
+    lead_id: int
+    activity_type: str
+    message: Optional[str] = None
+    lead_name: Optional[str] = None
+    lead_linkedin_url: Optional[str] = None
+    created_at: str
+
+
+class ActivitiesResponse(BaseModel):
+    """Response for activities list"""
+    activities: List[ActivityItem]
+    total_count: int
+    page: int
+    limit: int
+    has_more: bool
+
+
+class RateLimitStatus(BaseModel):
+    """Current rate limit status"""
+    connections_sent_today: int 
+    connections_remaining: int
+    connections_limit: int
+    dms_sent_today: int
+    dms_remaining: int
+    dms_limit: int

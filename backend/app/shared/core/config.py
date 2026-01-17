@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
     CORS_ORIGIN: str = "http://localhost:3000"  
     DATABASE_URL: str 
+    
+    # Unipile LinkedIn Messaging API
+    UNIPILE_API_KEY: str = ""
+    UNIPILE_DSN: str = "https://api16.unipile.com:14612"
+    UNIPILE_ACCOUNT_ID: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",
