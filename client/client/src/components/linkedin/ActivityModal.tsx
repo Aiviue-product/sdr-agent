@@ -39,7 +39,9 @@ export default function ActivityModal({
                 <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                         <Activity className="w-5 h-5 text-purple-600" />
-                        Activity Timeline
+                        {activities.length > 0 && activities[0].lead_id && activities.every(a => a.lead_id === activities[0].lead_id)
+                            ? `Activity: ${activities[0].lead_name}`
+                            : 'Global Activity Timeline'}
                     </h2>
                     <button
                         onClick={onClose}

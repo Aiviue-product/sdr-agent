@@ -11,6 +11,7 @@ interface LinkedInSearchHeaderProps {
     postsPerKeyword: number;
     onPostsPerKeywordChange: (value: number) => void;
     onSearch: () => void;
+    onOpenActivity: () => void;
     isSearching: boolean;
 }
 
@@ -22,6 +23,7 @@ export default function LinkedInSearchHeader({
     postsPerKeyword,
     onPostsPerKeywordChange,
     onSearch,
+    onOpenActivity,
     isSearching
 }: LinkedInSearchHeaderProps) {
     return (
@@ -80,21 +82,33 @@ export default function LinkedInSearchHeader({
                         />
                     </div>
 
-                    <button
-                        onClick={onSearch}
-                        disabled={isSearching}
-                        className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition-all
-                            ${isSearching
-                                ? 'bg-gray-200 text-gray-400 cursor-wait'
-                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
-                            }`}
-                    >
-                        {isSearching ? (
-                            <><Loader2 className="w-4 h-4 animate-spin" /> Searching...</>
-                        ) : (
-                            <><Search className="w-4 h-4" /> Search</>
-                        )}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={onSearch}
+                            disabled={isSearching}
+                            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition-all
+                                ${isSearching
+                                    ? 'bg-gray-200 text-gray-400 cursor-wait'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
+                                }`}
+                        >
+                            {isSearching ? (
+                                <><Loader2 className="w-4 h-4 animate-spin" /> Searching...</>
+                            ) : (
+                                <><Search className="w-4 h-4" /> Search</>
+                            )}
+                        </button>
+
+                        <button
+                            onClick={onOpenActivity}
+                            className="flex items-center gap-2 px-6 py-2 rounded-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-200 transition-all"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            Global Activity
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

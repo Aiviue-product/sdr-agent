@@ -58,6 +58,7 @@ export default function LinkedInSignalsPage() {
     const [isSendingConnection, setIsSendingConnection] = useState(false);
     const [rateLimits, setRateLimits] = useState<RateLimitStatus | null>(null);
     const [showActivityModal, setShowActivityModal] = useState(false);
+    const [activeActivityLeadId, setActiveActivityLeadId] = useState<number | null>(null);
     const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(false);
     const [activityPage, setActivityPage] = useState(1);
@@ -295,10 +296,10 @@ export default function LinkedInSignalsPage() {
         }
     };
 
-    const loadActivities = async (page: number = 1) => {
+    const loadActivities = async (page: number = 1, leadId?: number | null) => {
         setLoadingActivities(true);
         try {
-            const response = await getActivities(page, 20);
+            const response = await getActivities(page, 20, undefined, leadId || undefined);
             if (page === 1) {
                 setActivities(response.activities);
             } else {
@@ -362,9 +363,10 @@ export default function LinkedInSignalsPage() {
         }
     };
 
-    const openActivityModal = async () => {
+    const openActivityModal = async (leadId?: number) => {
+        setActiveActivityLeadId(leadId || null);
         setShowActivityModal(true);
-        await loadActivities(1);
+        await loadActivities(1, leadId);
     };
 
     useEffect(() => {
@@ -383,6 +385,7 @@ export default function LinkedInSignalsPage() {
                 postsPerKeyword={postsPerKeyword}
                 onPostsPerKeywordChange={setPostsPerKeyword}
                 onSearch={handleSearch}
+                onOpenActivity={() => openActivityModal()}
                 isSearching={isSearching}
             />
 
@@ -433,12 +436,15 @@ export default function LinkedInSignalsPage() {
             {/* --- ACTIVITY MODAL --- */}
             <ActivityModal
                 isOpen={showActivityModal}
-                onClose={() => setShowActivityModal(false)}
+                onClose={() => {
+                    setShowActivityModal(false);
+                    setActiveActivityLeadId(null);
+                }}
                 activities={activities}
                 loading={loadingActivities}
                 hasMore={hasMoreActivities}
                 currentPage={activityPage}
-                onLoadMore={() => loadActivities(activityPage + 1)}
+                onLoadMore={() => loadActivities(activityPage + 1, activeActivityLeadId)}
             />
         </div>
     );
