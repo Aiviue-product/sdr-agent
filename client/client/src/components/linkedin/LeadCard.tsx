@@ -1,7 +1,7 @@
 'use client';
 
 import { Building2, ChevronRight, Rocket, User } from 'lucide-react';
-import { LinkedInLead } from '../../types/types';
+import { LinkedInLead } from '../../types/linkedin';
 
 interface LeadCardProps {
     lead: LinkedInLead;

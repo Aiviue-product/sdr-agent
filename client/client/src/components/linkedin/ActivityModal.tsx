@@ -9,7 +9,7 @@ import {
     UserPlus,
     X
 } from 'lucide-react';
-import { ActivityItem } from '../../services/linkedin-service/api';
+import { ActivityItem } from '../../types/linkedin';
 
 interface ActivityModalProps {
     isOpen: boolean;

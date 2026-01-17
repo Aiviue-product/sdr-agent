@@ -4,11 +4,18 @@
  */
 import { API_BASE_URL } from "../../constants";
 import {
+    ActivitiesResponse,
+    BulkRefreshResponse,
+    BulkSendResponse,
     LinkedInLeadDetail,
     LinkedInLeadsResponse,
     LinkedInSearchRequest,
-    LinkedInSearchResponse
-} from "../../types/types";
+    LinkedInSearchResponse,
+    RateLimitStatus,
+    RefreshResponse,
+    SendConnectionResponse,
+    SendDMResponse
+} from "../../types/linkedin";
 
 
 // ============================================
@@ -103,22 +110,7 @@ export const fetchAvailableKeywords = async (): Promise<string[]> => {
 // REFRESH ANALYSIS ENDPOINTS
 // ============================================
 
-interface RefreshResponse {
-    success: boolean;
-    message: string;
-    lead_id?: number;
-    hiring_signal?: boolean;
-    hiring_roles?: string;
-    linkedin_dm?: string;
-}
 
-interface BulkRefreshResponse {
-    success: boolean;
-    message: string;
-    success_count: number;
-    failed_count: number;
-    errors: Array<{ lead_id: number; error: string }>;
-}
 
 /**
  * Refresh AI analysis for a single lead using existing post_data.
@@ -162,64 +154,7 @@ export const bulkRefreshLeads = async (leadIds: number[]): Promise<BulkRefreshRe
 // UNIPILE DM ENDPOINTS
 // ============================================
 
-export interface RateLimitStatus {
-    connections_sent_today: number;
-    connections_remaining: number;
-    connections_limit: number;
-    dms_sent_today: number;
-    dms_remaining: number;
-    dms_limit: number;
-}
 
-export interface SendDMResponse {
-    success: boolean;
-    message: string;
-    lead_id: number;
-    dm_status?: string;
-    sent_at?: string;
-    error?: string;
-}
-
-export interface SendConnectionResponse {
-    success: boolean;
-    message: string;
-    lead_id: number;
-    connection_status?: string;
-    invitation_id?: string;
-    sent_at?: string;
-    error?: string;
-}
-
-export interface BulkSendResponse {
-    success: boolean;
-    total: number;
-    successful: number;
-    failed: number;
-    results: Array<{
-        lead_id: number;
-        success: boolean;
-        message: string;
-        error?: string;
-    }>;
-}
-
-export interface ActivityItem {
-    id: number;
-    lead_id: number;
-    activity_type: string;
-    message?: string;
-    lead_name?: string;
-    lead_linkedin_url?: string;
-    created_at: string;
-}
-
-export interface ActivitiesResponse {
-    activities: ActivityItem[];
-    total_count: number;
-    page: number;
-    limit: number;
-    has_more: boolean;
-}
 
 /**
  * Get current rate limit status for LinkedIn operations.

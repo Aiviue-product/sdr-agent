@@ -9,20 +9,19 @@ import LeadsList from '../components/linkedin/LeadsList';
 import LinkedInSearchHeader from '../components/linkedin/LinkedInSearchHeader';
 
 import {
-    ActivityItem,
     bulkRefreshLeads,
     bulkSend,
     fetchLinkedInLeadDetail,
     fetchLinkedInLeads,
     getActivities,
     getRateLimits,
-    RateLimitStatus,
     refreshLeadAnalysis,
     searchLinkedInPosts,
     sendConnectionRequest,
     sendDM
 } from '../services/linkedin-service/api';
-import { ApiError, LinkedInLead, LinkedInLeadDetail, LinkedInSearchRequest } from '../types/types';
+import { ActivityItem, LinkedInLead, LinkedInLeadDetail, LinkedInSearchRequest, RateLimitStatus } from '../types/linkedin';
+import { ApiError } from '../types/types';
 
 
 export default function LinkedInSignalsPage() {

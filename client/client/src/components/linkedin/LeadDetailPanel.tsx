@@ -1,7 +1,7 @@
 'use client';
 
 import { Building2, Loader2, Mail, MessageCircle, Phone, Rocket, User } from 'lucide-react';
-import { LinkedInLeadDetail } from '../../types/types';
+import { LinkedInLeadDetail } from '../../types/linkedin';
 import DmPreviewCard from './DmPreviewCard';
 import LeadActionButtons from './LeadActionButtons';
 

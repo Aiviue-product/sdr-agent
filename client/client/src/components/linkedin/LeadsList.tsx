@@ -1,7 +1,7 @@
 'use client';
 
 import { Filter, Loader2, Search } from 'lucide-react';
-import { LinkedInLead } from '../../types/types';
+import { LinkedInLead } from '../../types/linkedin';
 import BulkActionBar from './BulkActionBar';
 import LeadCard from './LeadCard';
 
@@ -51,7 +51,7 @@ export default function LeadsList({
     isBulkSendingDM
 }: LeadsListProps) {
     return (
-        <div className="w-1/3 border-r border-pink-200 bg-white flex flex-col">
+        <div className="w-1/3 border-r border-pink-200 bg-stone-200 flex flex-col">
             <div className="p-4 border-b border-pink-100">
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
