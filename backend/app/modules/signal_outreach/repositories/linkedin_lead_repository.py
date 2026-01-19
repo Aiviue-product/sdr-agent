@@ -6,10 +6,11 @@ HYBRID APPROACH: One lead per person, but append new posts to post_data array.
 """
 import json
 from typing import Optional, List
-from sqlalchemy import text
+from sqlalchemy import text, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.shared.utils.json_utils import safe_json_parse
+from app.modules.signal_outreach.models.linkedin_lead import LinkedInLead
 
 
 class LinkedInLeadRepository:
@@ -25,9 +26,12 @@ class LinkedInLeadRepository:
         Fetch a single LinkedIn lead by ID.
         Returns all columns for detail view.
         """
-        query = text("SELECT * FROM linkedin_outreach_leads WHERE id = :id")
-        result = await self.db.execute(query, {"id": lead_id})
-        return result.mappings().first()
+        query = select(LinkedInLead).where(LinkedInLead.id == lead_id)
+        result = await self.db.execute(query)
+        lead = result.scalar_one_or_none()
+        
+        # Convert to dict for compatibility with existing code that expects mappings
+        return lead.__dict__ if lead else None
 
     async def get_leads_by_ids(self, lead_ids: List[int]) -> List[dict]:
         """
@@ -38,22 +42,17 @@ class LinkedInLeadRepository:
             lead_ids: List of lead IDs to fetch
             
         Returns:
-            List of lead dictionaries (preserves order of input IDs where possible)
+            List of lead dictionaries
         """
         if not lead_ids:
             return []
         
-        # Build parameterized query for multiple IDs
-        placeholders = ",".join([f":id_{i}" for i in range(len(lead_ids))])
-        params = {f"id_{i}": lead_id for i, lead_id in enumerate(lead_ids)}
+        query = select(LinkedInLead).where(LinkedInLead.id.in_(lead_ids))
+        result = await self.db.execute(query)
+        leads = result.scalars().all()
         
-        query = text(f"""
-            SELECT * FROM linkedin_outreach_leads 
-            WHERE id IN ({placeholders})
-        """)
-        
-        result = await self.db.execute(query, params)
-        return [dict(row) for row in result.mappings().all()]
+        # Convert to dicts for compatibility with service layer
+        return [lead.__dict__ for lead in leads]
 
     async def get_all_leads(
         self, 
