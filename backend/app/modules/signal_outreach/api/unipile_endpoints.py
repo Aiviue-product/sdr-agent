@@ -640,7 +640,9 @@ async def unipile_webhook(
         
         elif event_type == "new_relation":
             # Connection accepted
-            provider_id = data.get("user_provider_id")
+            # The person who accepted is in 'provider_id' (for users source)
+            # 'user_provider_id' is usually the account holder
+            provider_id = data.get("provider_id") or data.get("user_provider_id")
             
             if provider_id:
                 result = await db.execute(
