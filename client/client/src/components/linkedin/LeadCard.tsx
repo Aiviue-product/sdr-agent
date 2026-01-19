@@ -49,6 +49,7 @@ export default function LeadCard({
                             src={lead.profile_image_url}
                             alt={lead.full_name}
                             className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
                             onError={() => setImageError(true)}
                         />
                     ) : lead.is_company ? (

@@ -1,5 +1,5 @@
 import { Building2, Loader2, Mail, MessageCircle, Phone, Rocket, User } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LinkedInLeadDetail } from '../../types/linkedin';
 import DmPreviewCard from './DmPreviewCard';
 import LeadActionButtons from './LeadActionButtons';
@@ -33,6 +33,11 @@ export default function LeadDetailPanel({
 }: LeadDetailPanelProps) {
     const [imageError, setImageError] = useState(false);
 
+    // Reset image error state when lead changes
+    useEffect(() => {
+        setImageError(false);
+    }, [leadDetail?.id]);
+
     if (loading) {
         return (
             <div className="flex-1 flex items-center justify-center">
@@ -64,6 +69,7 @@ export default function LeadDetailPanel({
                                     src={leadDetail.profile_image_url}
                                     alt={leadDetail.full_name}
                                     className="w-14 h-14 rounded-full object-cover border-2 border-gray-100 shadow-sm"
+                                    referrerPolicy="no-referrer"
                                     onError={() => setImageError(true)}
                                 />
                             ) : (
