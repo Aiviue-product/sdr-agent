@@ -116,19 +116,15 @@ class LinkedInLeadRepository:
         Get list of unique search keywords for filter dropdown.
         Extracts keywords from the post_data JSONB array.
         """
-        # We need to unnest the JSONB array to extract keywords from each post
-        posts = func.jsonb_array_elements(LinkedInLead.post_data).alias("post")
-        keyword_expr = posts.column_valued("post").op("->>")("search_keyword")
-        
-        query = (
-            select(keyword_expr.label("keyword"))
-            .distinct()
-            .where(keyword_expr != None)
-            .order_by("keyword")
-        )
-        
+        query = text("""
+            SELECT DISTINCT post->>'search_keyword' as keyword
+            FROM linkedin_outreach_leads, 
+                 jsonb_array_elements(post_data) AS post
+            WHERE post->>'search_keyword' IS NOT NULL
+            ORDER BY keyword
+        """)
         result = await self.db.execute(query)
-        return [row.keyword for row in result.all() if row.keyword]
+        return [row[0] for row in result.fetchall() if row[0]]
 
     async def get_existing_leads_by_urls(self, linkedin_urls: List[str]) -> dict:
         """
