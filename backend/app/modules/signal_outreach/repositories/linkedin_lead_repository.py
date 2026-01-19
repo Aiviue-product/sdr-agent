@@ -6,7 +6,7 @@ HYBRID APPROACH: One lead per person, but append new posts to post_data array.
 """
 import json
 from typing import Optional, List
-from sqlalchemy import text, select
+from sqlalchemy import text, select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.shared.utils.json_utils import safe_json_parse
@@ -329,12 +329,29 @@ class LinkedInLeadRepository:
     async def update_dm_sent(self, lead_id: int):
         """
         Mark a LinkedIn lead's DM as sent.
-        (For future use when DM sending is implemented)
         """
-        await self.db.execute(
-            text("UPDATE linkedin_outreach_leads SET is_dm_sent = TRUE, dm_sent_at = NOW() WHERE id = :id"),
-            {"id": lead_id}
+        stmt = (
+            update(LinkedInLead)
+            .where(LinkedInLead.id == lead_id)
+            .values(is_dm_sent=True, dm_sent_at=func.now())
         )
+        await self.db.execute(stmt)
+        await self.db.commit()
+
+    async def update_connection_sent(self, lead_id: int):
+        """
+        Mark a LinkedIn lead's connection request as sent (pending).
+        """
+        stmt = (
+            update(LinkedInLead)
+            .where(LinkedInLead.id == lead_id)
+            .values(
+                connection_status="pending", 
+                connection_sent_at=func.now(),
+                updated_at=func.now()
+            )
+        )
+        await self.db.execute(stmt)
         await self.db.commit()
 
     async def update_ai_enrichment(
@@ -350,25 +367,17 @@ class LinkedInLeadRepository:
         Update AI enrichment data for a lead.
         Called after AI analysis is complete.
         """
-        await self.db.execute(
-            text("""
-                UPDATE linkedin_outreach_leads 
-                SET 
-                    hiring_signal = :hiring_signal,
-                    hiring_roles = :hiring_roles,
-                    pain_points = :pain_points,
-                    ai_variables = :ai_variables,
-                    linkedin_dm = :linkedin_dm,
-                    updated_at = NOW()
-                WHERE id = :id
-            """),
-            {
-                "id": lead_id,
-                "hiring_signal": hiring_signal,
-                "hiring_roles": hiring_roles,
-                "pain_points": pain_points,
-                "ai_variables": json.dumps(ai_variables),
-                "linkedin_dm": linkedin_dm
-            }
+        stmt = (
+            update(LinkedInLead)
+            .where(LinkedInLead.id == lead_id)
+            .values(
+                hiring_signal=hiring_signal,
+                hiring_roles=hiring_roles,
+                pain_points=pain_points,
+                ai_variables=ai_variables, # SQLAlchemy JSONB handles dict -> json automatically
+                linkedin_dm=linkedin_dm,
+                updated_at=func.now()
+            )
         )
+        await self.db.execute(stmt)
         await self.db.commit()
