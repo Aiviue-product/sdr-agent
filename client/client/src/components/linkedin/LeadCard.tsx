@@ -1,6 +1,7 @@
 'use client';
 
 import { Building2, ChevronRight, Rocket, User } from 'lucide-react';
+import { useState } from 'react';
 import { LinkedInLead } from '../../types/linkedin';
 
 interface LeadCardProps {
@@ -18,6 +19,8 @@ export default function LeadCard({
     onSelect,
     onToggleBulk
 }: LeadCardProps) {
+    const [imageError, setImageError] = useState(false);
+
     return (
         <div
             onClick={() => onSelect(lead.id)}
@@ -41,16 +44,12 @@ export default function LeadCard({
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden
                     ${lead.is_company ? 'bg-purple-100' : 'bg-blue-100'}`}
                 >
-                    {lead.profile_image_url ? (
+                    {lead.profile_image_url && !imageError ? (
                         <img
                             src={lead.profile_image_url}
                             alt={lead.full_name}
                             className="w-full h-full object-cover"
-                            onError={(e) => {
-                                // Fallback if image fails to load
-                                (e.target as HTMLImageElement).style.display = 'none';
-                                (e.target as HTMLImageElement).parentElement?.classList.add(lead.is_company ? 'bg-purple-100' : 'bg-blue-100');
-                            }}
+                            onError={() => setImageError(true)}
                         />
                     ) : lead.is_company ? (
                         <Building2 className="w-5 h-5 text-purple-600" />

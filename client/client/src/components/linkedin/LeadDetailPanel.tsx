@@ -1,6 +1,5 @@
-'use client';
-
 import { Building2, Loader2, Mail, MessageCircle, Phone, Rocket, User } from 'lucide-react';
+import { useState } from 'react';
 import { LinkedInLeadDetail } from '../../types/linkedin';
 import DmPreviewCard from './DmPreviewCard';
 import LeadActionButtons from './LeadActionButtons';
@@ -32,6 +31,8 @@ export default function LeadDetailPanel({
     isSendingConnection,
     isSendingDM
 }: LeadDetailPanelProps) {
+    const [imageError, setImageError] = useState(false);
+
     if (loading) {
         return (
             <div className="flex-1 flex items-center justify-center">
@@ -58,11 +59,12 @@ export default function LeadDetailPanel({
                 <div className="max-w-5xl mx-auto p-4 md:p-6 pb-4">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div className="flex items-center gap-4 min-w-0">
-                            {leadDetail.profile_image_url ? (
+                            {leadDetail.profile_image_url && !imageError ? (
                                 <img
                                     src={leadDetail.profile_image_url}
                                     alt={leadDetail.full_name}
                                     className="w-14 h-14 rounded-full object-cover border-2 border-gray-100 shadow-sm"
+                                    onError={() => setImageError(true)}
                                 />
                             ) : (
                                 <div className={`w-14 h-14 rounded-full flex items-center justify-center
