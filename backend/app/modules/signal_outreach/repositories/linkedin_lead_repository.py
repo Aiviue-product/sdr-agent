@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.shared.utils.json_utils import safe_json_parse
 from app.modules.signal_outreach.models.linkedin_lead import LinkedInLead
+from app.shared.core.constants import DEFAULT_PAGE_SIZE
 
 
 class LinkedInLeadRepository:
@@ -58,7 +59,7 @@ class LinkedInLeadRepository:
         self, 
         keyword: Optional[str] = None, 
         skip: int = 0, 
-        limit: int = 50
+        limit: int = DEFAULT_PAGE_SIZE
     ):
         """
         Fetch all LinkedIn leads with optional keyword filter.

@@ -50,6 +50,10 @@ MAX_BULK_LEADS = 100          # Max leads per bulk push
 MAX_BULK_EMAILS = 100         # Max emails per ZeroBounce batch
 MAX_SCRAPER_POSTS = 2         # Default posts to scrape per profile
 
+# Pagination Defaults
+DEFAULT_PAGE_SIZE = 50        # Default number of leads per page
+MAX_PAGE_SIZE = 200           # Maximum allowed leads per page
+
 # ============================================
 # AI MODEL CONFIGURATION
 # ============================================

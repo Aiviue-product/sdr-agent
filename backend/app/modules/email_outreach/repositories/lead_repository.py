@@ -6,6 +6,7 @@ import json
 from typing import Optional, List
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.shared.core.constants import DEFAULT_PAGE_SIZE
 
 
 class LeadRepository:
@@ -25,7 +26,7 @@ class LeadRepository:
         result = await self.db.execute(query, {"id": lead_id})
         return result.mappings().first()
 
-    async def get_campaign_leads(self, sector: Optional[str] = None, skip: int = 0, limit: int = 50):
+    async def get_campaign_leads(self, sector: Optional[str] = None, skip: int = 0, limit: int = DEFAULT_PAGE_SIZE):
         """
         Fetch all verified leads for campaign view.
         Optionally filter by sector.
@@ -63,7 +64,7 @@ class LeadRepository:
         result = await self.db.execute(text(count_query))
         return result.scalar() or 0
 
-    async def get_enrichment_leads(self, sector: Optional[str] = None, skip: int = 0, limit: int = 50):
+    async def get_enrichment_leads(self, sector: Optional[str] = None, skip: int = 0, limit: int = DEFAULT_PAGE_SIZE):
         """
         Fetch leads that have valid email but are missing some data.
         """
