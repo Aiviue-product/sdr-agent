@@ -235,12 +235,13 @@ export const bulkSend = async (
 /**
  * Get activity timeline with pagination.
  */
-export const getActivities = async (
-    page: number = 1,
-    limit: number = 20,
-    activityType?: string,
-    leadId?: number
-): Promise<ActivitiesResponse> => {
+export const getActivities = async (params: {
+    page?: number;
+    limit?: number;
+    activityType?: string;
+    leadId?: number;
+} = {}): Promise<ActivitiesResponse> => {
+    const { page = 1, limit = 20, activityType, leadId } = params;
     let url = `${API_BASE_URL}/api/v1/linkedin/dm/activities?page=${page}&limit=${limit}`;
 
     if (activityType) {

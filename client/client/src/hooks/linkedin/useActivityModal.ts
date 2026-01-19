@@ -37,9 +37,12 @@ export function useActivityModal(): UseActivityModalReturn {
     const [hasMoreActivities, setHasMoreActivities] = useState(false);
 
     const fetchActivities = useCallback(async (page: number, leadId?: number) => {
+        if (page === 1) {
+            setActivities([]);
+        }
         setLoadingActivities(true);
         try {
-            const response = await getActivities(leadId, page);
+            const response = await getActivities({ page, leadId });
             if (page === 1) {
                 setActivities(response.activities);
             } else {
