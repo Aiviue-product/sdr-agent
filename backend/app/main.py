@@ -1,18 +1,31 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.shared.core.config import settings
+from app.shared.core.logging import setup_logging
+from app.shared.middleware.correlation import CorrelationIdMiddleware
 from app.modules.signal_outreach.api import router as signal_outreach_router
 from app.modules.email_outreach.api import router as email_outreach_router
 
+# Setup logging with correlation ID support
+setup_logging()
+
 app = FastAPI(title=settings.PROJECT_NAME)
+
+# ============================================
+# MIDDLEWARE (order matters - first added = outermost)
+# ============================================
+
+# Correlation ID Middleware - Assigns unique request ID for log tracing
+app.add_middleware(CorrelationIdMiddleware)
 
 # CORS - Using single origin from settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.CORS_ORIGIN],   # Wrap single string in list
+    allow_origins=[settings.CORS_ORIGIN],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"], 
+    allow_headers=["*"],
+    expose_headers=["X-Request-ID"],  # Allow frontend to see request ID
 )
 
 
@@ -30,3 +43,4 @@ app.include_router(signal_outreach_router, prefix="/api/v1")
 @app.get("/")
 def root():
     return {"message": "Lead Verification Pro API is running"}
+

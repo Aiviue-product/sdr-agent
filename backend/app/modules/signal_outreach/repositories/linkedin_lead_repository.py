@@ -9,6 +9,8 @@ from typing import Optional, List
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.shared.utils.json_utils import safe_json_parse
+
 
 class LinkedInLeadRepository:
     def __init__(self, db_session: AsyncSession):
@@ -26,6 +28,32 @@ class LinkedInLeadRepository:
         query = text("SELECT * FROM linkedin_outreach_leads WHERE id = :id")
         result = await self.db.execute(query, {"id": lead_id})
         return result.mappings().first()
+
+    async def get_leads_by_ids(self, lead_ids: List[int]) -> List[dict]:
+        """
+        Fetch multiple LinkedIn leads by their IDs in a SINGLE query.
+        This prevents N+1 query problems in bulk operations.
+        
+        Args:
+            lead_ids: List of lead IDs to fetch
+            
+        Returns:
+            List of lead dictionaries (preserves order of input IDs where possible)
+        """
+        if not lead_ids:
+            return []
+        
+        # Build parameterized query for multiple IDs
+        placeholders = ",".join([f":id_{i}" for i in range(len(lead_ids))])
+        params = {f"id_{i}": lead_id for i, lead_id in enumerate(lead_ids)}
+        
+        query = text(f"""
+            SELECT * FROM linkedin_outreach_leads 
+            WHERE id IN ({placeholders})
+        """)
+        
+        result = await self.db.execute(query, params)
+        return [dict(row) for row in result.mappings().all()]
 
     async def get_all_leads(
         self, 
@@ -154,8 +182,7 @@ class LinkedInLeadRepository:
                 existing_posts = existing_record.get("post_data") or []
                 
                 # Parse if it's a string
-                if isinstance(existing_posts, str):
-                    existing_posts = json.loads(existing_posts)
+                existing_posts = safe_json_parse(existing_posts, default=[])
                 
                 # Check for duplicate post (same activity_id)
                 new_post = lead.get("post_data", {})
@@ -199,7 +226,12 @@ class LinkedInLeadRepository:
         """
         Insert brand new leads with their first post.
         post_data is stored as JSON array with single post.
+        
+        TRANSACTION: All inserts happen atomically - if one fails, all are rolled back.
         """
+        if not leads:
+            return 0
+            
         query = text("""
             INSERT INTO linkedin_outreach_leads (
                 full_name, first_name, last_name, company_name, is_company,
@@ -217,7 +249,8 @@ class LinkedInLeadRepository:
             )
         """)
 
-        try:
+        # Use nested transaction (savepoint) for atomic bulk insert
+        async with self.db.begin_nested():
             for lead in leads:
                 # Wrap single post in array for consistency
                 post_data = lead.get("post_data", {})
@@ -237,7 +270,7 @@ class LinkedInLeadRepository:
                     "linkedin_url": lead.get("linkedin_url"),
                     "headline": lead.get("headline"),
                     "profile_image_url": lead.get("profile_image_url"),
-                    "search_keyword": lead.get("search_keyword"),  # First keyword that found them
+                    "search_keyword": lead.get("search_keyword"),
                     "post_data": json.dumps(post_data_array),
                     "hiring_signal": lead.get("hiring_signal", False),
                     "hiring_roles": lead.get("hiring_roles"),
@@ -246,19 +279,21 @@ class LinkedInLeadRepository:
                     "linkedin_dm": lead.get("linkedin_dm")
                 }
                 await self.db.execute(query, params)
-            
-            await self.db.commit()
-            return len(leads)
-            
-        except Exception as e:
-            await self.db.rollback()
-            raise e
+        
+        # Commit after successful nested transaction
+        await self.db.commit()
+        return len(leads)
 
     async def _append_posts_to_existing(self, updates: List[dict]) -> int:
         """
         Append new posts to existing leads' post_data array.
         Uses PostgreSQL JSONB concatenation.
+        
+        TRANSACTION: All updates happen atomically - if one fails, all are rolled back.
         """
+        if not updates:
+            return 0
+            
         query = text("""
             UPDATE linkedin_outreach_leads 
             SET 
@@ -267,7 +302,8 @@ class LinkedInLeadRepository:
             WHERE id = :id
         """)
 
-        try:
+        # Use nested transaction (savepoint) for atomic bulk update
+        async with self.db.begin_nested():
             for update in updates:
                 new_post = update["new_post"]
                 if isinstance(new_post, dict):
@@ -282,13 +318,10 @@ class LinkedInLeadRepository:
                     "id": update["id"],
                     "new_post_json": new_post_json
                 })
-            
-            await self.db.commit()
-            return len(updates)
-            
-        except Exception as e:
-            await self.db.rollback()
-            raise e
+        
+        # Commit after successful nested transaction
+        await self.db.commit()
+        return len(updates)
 
     # ============================================
     # UPDATE OPERATIONS  

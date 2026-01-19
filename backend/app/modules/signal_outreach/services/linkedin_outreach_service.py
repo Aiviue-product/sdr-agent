@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.signal_outreach.services.linkedin_search_service import linkedin_search_service
 from app.modules.signal_outreach.services.linkedin_intelligence_service import linkedin_intelligence_service
 from app.modules.signal_outreach.repositories.linkedin_lead_repository import LinkedInLeadRepository
+from app.shared.utils.json_utils import safe_json_parse
 
 logger = logging.getLogger("linkedin_outreach_service")
 
@@ -106,13 +107,7 @@ class LinkedInOutreachService:
         if not lead:
             return {"success": False, "error": "Lead not found"}
 
-        post_data = lead.get("post_data")
-        if isinstance(post_data, str):
-            import json
-            try:
-                post_data = json.loads(post_data)
-            except:
-                post_data = []
+        post_data = safe_json_parse(lead.get("post_data"), default=[])
 
         if not post_data:
             return {"success": False, "error": "No post data available for refresh"}
@@ -144,20 +139,71 @@ class LinkedInOutreachService:
     async def bulk_refresh_leads(self, lead_ids: List[int]) -> Dict[str, Any]:
         """
         Re-runs AI analysis for multiple leads.
+        
+        OPTIMIZED: Fetches all leads in a single query to avoid N+1 problem.
         """
         results = {"success_count": 0, "failed_count": 0, "errors": []}
         
+        if not lead_ids:
+            return results
+        
+        # OPTIMIZATION: Fetch all leads in ONE query instead of N queries
+        logger.info(f"📦 Batch fetching {len(lead_ids)} leads...")
+        leads = await self.repo.get_leads_by_ids(lead_ids)
+        
+        # Create a lookup map for quick access
+        leads_map = {lead["id"]: lead for lead in leads}
+        
+        # Track which IDs were not found
+        found_ids = set(leads_map.keys())
+        missing_ids = set(lead_ids) - found_ids
+        
+        for missing_id in missing_ids:
+            results["failed_count"] += 1
+            results["errors"].append({"lead_id": missing_id, "error": "Lead not found"})
+        
+        # Process each found lead
         for lead_id in lead_ids:
+            if lead_id not in leads_map:
+                continue  # Already counted as missing
+                
+            lead = leads_map[lead_id]
+            
             try:
-                refresh_result = await self.refresh_lead_analysis(lead_id)
-                if refresh_result.get("success"):
-                    results["success_count"] += 1
-                else:
+                # Parse post_data
+                post_data = safe_json_parse(lead.get("post_data"), default=[])
+                
+                if not post_data:
                     results["failed_count"] += 1
-                    results["errors"].append({"lead_id": lead_id, "error": refresh_result.get("error")})
+                    results["errors"].append({"lead_id": lead_id, "error": "No post data available"})
+                    continue
+                
+                # Use the first post for analysis
+                first_post = post_data[0] if isinstance(post_data, list) else post_data
+                
+                # Run AI analysis
+                ai_result = await linkedin_intelligence_service.analyze_and_generate_dm(
+                    post_data=first_post,
+                    author_name=lead.get("full_name", ""),
+                    author_headline=lead.get("headline", "")
+                )
+                
+                # Update the lead in database
+                await self.repo.update_ai_enrichment(
+                    lead_id=lead_id,
+                    hiring_signal=ai_result.get("hiring_signal", False),
+                    hiring_roles=ai_result.get("hiring_roles", ""),
+                    pain_points=ai_result.get("pain_points", ""),
+                    ai_variables=ai_result.get("ai_variables", {}),
+                    linkedin_dm=ai_result.get("linkedin_dm", "")
+                )
+                
+                results["success_count"] += 1
+                
             except Exception as e:
                 logger.error(f"Bulk refresh failed for lead {lead_id}: {e}")
                 results["failed_count"] += 1
                 results["errors"].append({"lead_id": lead_id, "error": str(e)})
-
+        
+        logger.info(f"✅ Bulk refresh complete: {results['success_count']} success, {results['failed_count']} failed")
         return results

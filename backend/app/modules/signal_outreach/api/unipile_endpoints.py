@@ -4,13 +4,21 @@ Handles sending DMs, connection requests, and managing LinkedIn outreach.
 """
 import logging
 import asyncio
+import hmac
 from typing import Optional
 from datetime import datetime, date
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
+from app.shared.core.config import settings
+
 from app.shared.db.session import get_db
+from app.shared.utils.cache import (
+    app_cache,
+    CACHE_TTL_RATE_LIMITS,
+    get_rate_limits_cache_key
+)
 from app.shared.core.constants import (
     LINKEDIN_DAILY_CONNECTION_LIMIT,
     LINKEDIN_DAILY_DM_LIMIT,
@@ -36,11 +44,51 @@ logger = logging.getLogger("unipile_api")
 
 
 # ============================================
+# WEBHOOK SECURITY
+# ============================================
+
+def verify_webhook_auth(auth_header: str, secret: str) -> bool:
+    """
+    Verify the Unipile webhook authentication header.
+    
+    Unipile sends a custom 'Unipile-Auth' header with the secret value.
+    We compare this against our configured secret.
+    
+    Args:
+        auth_header: Value from Unipile-Auth header
+        secret: Our configured webhook secret
+        
+    Returns:
+        True if authentication is valid, False otherwise
+    """
+    if not secret:
+        # If no secret configured, skip verification (backward compatible)
+        return True
+    
+    if not auth_header:
+        logger.warning("⚠️ Webhook received without Unipile-Auth header")
+        return False
+    
+    # Use constant-time comparison to prevent timing attacks
+    return hmac.compare_digest(auth_header, secret)
+
+
+# ============================================
 # HELPER FUNCTIONS
 # ============================================
 
 async def get_daily_counts(db: AsyncSession) -> dict:
-    """Get today's connection and DM counts."""
+    """
+    Get today's connection and DM counts.
+    CACHED for 30 seconds to reduce DB load.
+    """
+    cache_key = get_rate_limits_cache_key()
+    
+    # Try cache first
+    cached = app_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    
     today = date.today()
     
     # Count connections sent today
@@ -65,10 +113,15 @@ async def get_daily_counts(db: AsyncSession) -> dict:
     )
     dms_today = dms_result.scalar() or 0
     
-    return {
+    result = {
         "connections_today": connections_today,
         "dms_today": dms_today
     }
+    
+    # Cache the result
+    app_cache.set(cache_key, result, ttl_seconds=CACHE_TTL_RATE_LIMITS)
+    
+    return result
 
 
 async def create_activity(
@@ -215,6 +268,9 @@ async def send_dm_to_lead(
             lead_linkedin_url=lead.linkedin_url
         )
         
+        # Invalidate rate limits cache since count changed
+        app_cache.invalidate(get_rate_limits_cache_key())
+        
         logger.info(f"✅ DM sent to lead {lead_id}: {lead.full_name}")
         
         return SendDMResponse(
@@ -330,6 +386,9 @@ async def send_connection_to_lead(
             lead_linkedin_url=lead.linkedin_url,
             extra_data={"invitation_id": send_result.get("invitation_id")}
         )
+        
+        # Invalidate rate limits cache since count changed
+        app_cache.invalidate(get_rate_limits_cache_key())
         
         logger.info(f"✅ Connection request sent to lead {lead_id}: {lead.full_name}")
         
@@ -519,7 +578,18 @@ async def unipile_webhook(
     Events:
     - message_received: Someone replied to a DM
     - new_relation: Connection request accepted
+    
+    Security:
+    - If UNIPILE_WEBHOOK_SECRET is configured, verifies the Unipile-Auth header
+    - Rejects requests with invalid auth (401 Unauthorized)
     """
+    # Verify webhook authentication if secret is configured
+    auth_header = request.headers.get("Unipile-Auth", "") or request.headers.get("unipile-auth", "")
+    
+    if not verify_webhook_auth(auth_header, settings.UNIPILE_WEBHOOK_SECRET):
+        logger.warning("🚫 Webhook rejected: Invalid Unipile-Auth header")
+        raise HTTPException(status_code=401, detail="Invalid webhook authentication")
+    
     try:
         data = await request.json()
         event_type = data.get("event")

@@ -8,6 +8,12 @@ from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.shared.db.session import get_db
+from app.shared.utils.json_utils import safe_json_parse
+from app.shared.utils.cache import (
+    app_cache, 
+    CACHE_KEY_KEYWORDS, 
+    CACHE_TTL_KEYWORDS
+)
 from app.modules.signal_outreach.repositories.linkedin_lead_repository import LinkedInLeadRepository
 from app.modules.signal_outreach.services.linkedin_outreach_service import LinkedInOutreachService
 from app.modules.signal_outreach.api.schemas import (
@@ -53,17 +59,14 @@ async def search_linkedin_posts(
                 detail=result.get("error", "Search failed")
             )
         
+        # Invalidate keywords cache since new leads may have been added
+        app_cache.invalidate(CACHE_KEY_KEYWORDS)
+        
         return LinkedInSearchResponse(
             success=True,
             message=result.get("message", "Search processed"),
             stats=result.get("stats", {})
         )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ LinkedIn search endpoint failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
         
     except HTTPException:
         raise
@@ -97,8 +100,12 @@ async def get_linkedin_leads(
     # Get total count for pagination
     total_count = await repo.get_total_count(keyword=keyword)
     
-    # Get unique keywords for filter dropdown
-    unique_keywords = await repo.get_unique_keywords()
+    # Get unique keywords for filter dropdown (CACHED)
+    unique_keywords = app_cache.get(CACHE_KEY_KEYWORDS)
+    if unique_keywords is None:
+        unique_keywords = await repo.get_unique_keywords()
+        app_cache.set(CACHE_KEY_KEYWORDS, unique_keywords, ttl_seconds=CACHE_TTL_KEYWORDS)
+        logger.debug(f"Keywords cache populated: {len(unique_keywords)} keywords")
     
     # Convert to response format
     leads_list = []
@@ -151,22 +158,10 @@ async def get_linkedin_lead_detail(
         raise HTTPException(status_code=404, detail="Lead not found")
     
     # Parse post_data if it's a string
-    post_data = lead.get("post_data")
-    if isinstance(post_data, str):
-        try:
-            import json
-            post_data = json.loads(post_data)
-        except:
-            post_data = []
+    post_data = safe_json_parse(lead.get("post_data"), default=[])
     
     # Parse ai_variables if it's a string
-    ai_variables = lead.get("ai_variables")
-    if isinstance(ai_variables, str):
-        try:
-            import json
-            ai_variables = json.loads(ai_variables)
-        except:
-            ai_variables = {}
+    ai_variables = safe_json_parse(lead.get("ai_variables"), default={})
     
     return {
         "id": lead["id"],
@@ -249,11 +244,16 @@ async def refresh_single_lead_analysis(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 
 class BulkRefreshRequest(BaseModel):
-    lead_ids: List[int]
+    lead_ids: List[int] = Field(
+        ..., 
+        min_length=1, 
+        max_length=100,
+        description="List of lead IDs to refresh (max 100 at a time)"
+    )
 
 
 @router.post("/leads/bulk-refresh")

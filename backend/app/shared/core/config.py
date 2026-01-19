@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     UNIPILE_API_KEY: str = ""
     UNIPILE_DSN: str = "https://api16.unipile.com:14612"
     UNIPILE_ACCOUNT_ID: str = ""
+    UNIPILE_WEBHOOK_SECRET: str = ""  # Optional: Set to enable webhook signature verification
 
     model_config = SettingsConfigDict(
         env_file=".env",
