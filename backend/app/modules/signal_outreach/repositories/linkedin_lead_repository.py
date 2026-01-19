@@ -66,47 +66,49 @@ class LinkedInLeadRepository:
         
         Note: keyword filter checks if ANY post in post_data matches the keyword.
         """
-        query_str = """
-            SELECT 
-                id, full_name, first_name, last_name, company_name, is_company,
-                linkedin_url, headline, profile_image_url,
-                search_keyword, hiring_signal, hiring_roles, pain_points,
-                is_dm_sent, created_at, post_data
-            FROM linkedin_outreach_leads 
-            WHERE 1=1
-        """
-        params = {"limit": limit, "offset": skip}
+        # Select specific columns (Partial selection) for efficiency
+        query = select(
+            LinkedInLead.id, 
+            LinkedInLead.full_name, 
+            LinkedInLead.first_name, 
+            LinkedInLead.last_name, 
+            LinkedInLead.company_name, 
+            LinkedInLead.is_company,
+            LinkedInLead.linkedin_url, 
+            LinkedInLead.headline, 
+            LinkedInLead.profile_image_url,
+            LinkedInLead.search_keyword, 
+            LinkedInLead.hiring_signal, 
+            LinkedInLead.hiring_roles, 
+            LinkedInLead.pain_points,
+            LinkedInLead.is_dm_sent, 
+            LinkedInLead.created_at, 
+            LinkedInLead.post_data
+        )
 
-        # Optional keyword filter - checks if keyword exists in post_data array
         if keyword:
-            # Use JSONB contains to check if any post has this keyword
-            query_str += """ AND EXISTS (
-                SELECT 1 FROM jsonb_array_elements(post_data) AS post 
-                WHERE post->>'search_keyword' = :keyword
-            )"""
-            params["keyword"] = keyword
+            # Use JSONB contains (@>) operator for high-performance filtering
+            # This looks for any post in the array that has this search_keyword
+            query = query.where(LinkedInLead.post_data.contains([{"search_keyword": keyword}]))
 
-        query_str += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+        query = query.order_by(LinkedInLead.created_at.desc()).offset(skip).limit(limit)
 
-        result = await self.db.execute(text(query_str), params)
-        return result.mappings().all()
+        result = await self.db.execute(query)
+        # Convert rows back to dict mappings for compatibility with existing code
+        return [dict(row._mapping) for row in result.all()]
 
     async def get_total_count(self, keyword: Optional[str] = None) -> int:
         """
         Get total count of leads for pagination.
         Optionally filter by keyword.
         """
-        query_str = "SELECT COUNT(*) FROM linkedin_outreach_leads WHERE 1=1"
-        params = {}
+        query = select(func.count()).select_from(LinkedInLead)
         
         if keyword:
-            query_str += """ AND EXISTS (
-                SELECT 1 FROM jsonb_array_elements(post_data) AS post 
-                WHERE post->>'search_keyword' = :keyword
-            )"""
-            params["keyword"] = keyword
+            # Consistent with get_all_leads filter
+            query = query.where(LinkedInLead.post_data.contains([{"search_keyword": keyword}]))
         
-        result = await self.db.execute(text(query_str), params)
+        result = await self.db.execute(query)
         return result.scalar() or 0
 
     async def get_unique_keywords(self) -> List[str]:
@@ -114,15 +116,19 @@ class LinkedInLeadRepository:
         Get list of unique search keywords for filter dropdown.
         Extracts keywords from the post_data JSONB array.
         """
-        query = text("""
-            SELECT DISTINCT post->>'search_keyword' as keyword
-            FROM linkedin_outreach_leads, 
-                 jsonb_array_elements(post_data) AS post
-            WHERE post->>'search_keyword' IS NOT NULL
-            ORDER BY keyword
-        """)
+        # We need to unnest the JSONB array to extract keywords from each post
+        posts = func.jsonb_array_elements(LinkedInLead.post_data).alias("post")
+        keyword_expr = posts.column_valued("post").op("->>")("search_keyword")
+        
+        query = (
+            select(keyword_expr.label("keyword"))
+            .distinct()
+            .where(keyword_expr != None)
+            .order_by("keyword")
+        )
+        
         result = await self.db.execute(query)
-        return [row[0] for row in result.fetchall() if row[0]]
+        return [row.keyword for row in result.all() if row.keyword]
 
     async def get_existing_leads_by_urls(self, linkedin_urls: List[str]) -> dict:
         """
@@ -133,17 +139,24 @@ class LinkedInLeadRepository:
         if not linkedin_urls:
             return {}
         
-        placeholders = ",".join([f":url_{i}" for i in range(len(linkedin_urls))])
-        params = {f"url_{i}": url for i, url in enumerate(linkedin_urls)}
+        # Only select needed columns for efficiency
+        query = select(
+            LinkedInLead.id, 
+            LinkedInLead.linkedin_url, 
+            LinkedInLead.post_data
+        ).where(LinkedInLead.linkedin_url.in_(linkedin_urls))
         
-        query = text(f"""
-            SELECT id, linkedin_url, post_data 
-            FROM linkedin_outreach_leads 
-            WHERE linkedin_url IN ({placeholders})
-        """)
-        result = await self.db.execute(query, params)
+        result = await self.db.execute(query)
+        rows = result.all()
         
-        return {row.linkedin_url: dict(row._mapping) for row in result.fetchall()}
+        # Convert to dict lookup map: {url: {id, url, post_data}}
+        return {
+            row.linkedin_url: {
+                "id": row.id, 
+                "linkedin_url": row.linkedin_url, 
+                "post_data": row.post_data
+            } for row in rows
+        }
 
     # ============================================
     # INSERT/UPSERT OPERATIONS (HYBRID APPROACH)
