@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { fetchEnrichmentLeads } from '../services/campaign-service/api';
-import { Lead } from '../types/types';
+import { Lead } from '../types/email-outreach/types';
 
 export default function EnrichmentPage() {
     const [leads, setLeads] = useState<Lead[]>([]);

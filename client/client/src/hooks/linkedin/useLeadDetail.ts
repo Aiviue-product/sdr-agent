@@ -15,8 +15,8 @@ import {
     sendConnectionRequest,
     sendDM
 } from '../../services/linkedin-service/api';
+import { ApiError } from '../../types/email-outreach/types';
 import { LinkedInLeadDetail } from '../../types/linkedin';
-import { ApiError } from '../../types/types';
 
 interface UseLeadDetailOptions {
     onActionCompleted?: () => void;

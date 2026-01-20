@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
 import { FileUploader } from '../components/FileUploader';
 import { verifyLeads } from '../services/email-verification/api';
-import { ApiError } from '../types/types';
+import { ApiError } from '../types/email-outreach/types';
 
 export const LeadVerificationPage = () => {
     const router = useRouter();

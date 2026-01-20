@@ -9,7 +9,7 @@
 import { useCallback, useState } from 'react';
 import toast from 'react-hot-toast';
 import { bulkRefreshLeads, bulkSend } from '../../services/linkedin-service/api';
-import { ApiError } from '../../types/types';
+import { ApiError } from '../../types/email-outreach/types';
 
 interface UseBulkActionsOptions {
     onComplete?: () => void;

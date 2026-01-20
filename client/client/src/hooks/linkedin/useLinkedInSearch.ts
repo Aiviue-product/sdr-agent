@@ -8,8 +8,8 @@
 import { useCallback, useState } from 'react';
 import toast from 'react-hot-toast';
 import { searchLinkedInPosts } from '../../services/linkedin-service/api';
+import { ApiError } from '../../types/email-outreach/types';
 import { LinkedInSearchRequest } from '../../types/linkedin';
-import { ApiError } from '../../types/types';
 
 interface UseLinkedInSearchOptions {
     onSearchSuccess?: () => void;

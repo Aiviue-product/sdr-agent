@@ -14,7 +14,7 @@ import {
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { fetchEnrichmentLeads, fetchLeads } from '../services/campaign-service/api';
-import { Lead } from '../types/types';
+import { Lead } from '../types/email-outreach/types';
 
 export default function MasterLeadsPage() {
     const [verifiedLeads, setVerifiedLeads] = useState<Lead[]>([]);
