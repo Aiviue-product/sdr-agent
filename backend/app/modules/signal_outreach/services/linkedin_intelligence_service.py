@@ -308,6 +308,9 @@ class LinkedInIntelligenceService:
         if not post_text:
             return self._get_fallback_analysis(author_name, include_dm=False)
 
+        # Pre-detection hint for AI (keyword-based)
+        intent_hint, is_likely_hiring, is_job_seeker = pre_detect_hiring_intent(post_text)
+
         # Pre-detect contact info via Regex (Highly accurate)
         regex_emails = extract_emails_from_text(post_text)
         regex_phones = extract_phones_from_text(post_text)

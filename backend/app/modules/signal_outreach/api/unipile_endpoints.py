@@ -694,4 +694,5 @@ async def unipile_webhook(
     except Exception as e:
         print(f"\n[WEBHOOK] ❌ Error processing webhook: {str(e)}\n")
         logger.error(f"❌ Webhook error: {str(e)}")
-        return {"status": "error", "message": str(e)}
+        # Return 500 so webhook sender knows to retry
+        raise HTTPException(status_code=500, detail=f"Webhook processing failed: {str(e)}")

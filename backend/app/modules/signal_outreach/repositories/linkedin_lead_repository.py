@@ -236,11 +236,16 @@ class LinkedInLeadRepository:
         Insert brand new leads with their first post.
         post_data is stored as JSON array with single post.
         
+        Uses INSERT ... ON CONFLICT for atomic upsert:
+        - If lead is new: INSERT normally
+        - If lead already exists (race condition): Append post to existing post_data
+        
         TRANSACTION: All inserts happen atomically - if one fails, all are rolled back.
         """
         if not leads:
             return 0
             
+        # Use ON CONFLICT for atomic upsert - handles race conditions
         query = text("""
             INSERT INTO linkedin_outreach_leads (
                 full_name, first_name, last_name, company_name, is_company,
@@ -256,6 +261,9 @@ class LinkedInLeadRepository:
                 :hiring_signal, :hiring_roles, :pain_points, :ai_variables,
                 :linkedin_dm
             )
+            ON CONFLICT (linkedin_url) DO UPDATE SET
+                post_data = COALESCE(linkedin_outreach_leads.post_data, '[]'::jsonb) || excluded.post_data::jsonb,
+                updated_at = NOW()
         """)
 
         # Use nested transaction (savepoint) for atomic bulk insert
@@ -306,7 +314,7 @@ class LinkedInLeadRepository:
         query = text("""
             UPDATE linkedin_outreach_leads 
             SET 
-                post_data = post_data || :new_post_json::jsonb,
+                post_data = COALESCE(post_data, '[]'::jsonb) || :new_post_json::jsonb,
                 updated_at = NOW()
             WHERE id = :id
         """)
