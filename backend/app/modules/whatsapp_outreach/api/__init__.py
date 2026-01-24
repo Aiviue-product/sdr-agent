@@ -1,5 +1,9 @@
 """
-WhatsApp Outreach API Endpoints
+WhatsApp Outreach API
 
-This package contains FastAPI routes for WhatsApp outreach operations.
+API endpoints for WhatsApp outreach module.
 """
+
+from .whatsapp_endpoints import router
+
+__all__ = ["router"]

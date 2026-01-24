@@ -5,6 +5,7 @@ from app.shared.core.logging import setup_logging
 from app.shared.middleware.correlation import CorrelationIdMiddleware
 from app.modules.signal_outreach.api import router as signal_outreach_router
 from app.modules.email_outreach.api import router as email_outreach_router
+from app.modules.whatsapp_outreach.api import router as whatsapp_outreach_router
 
 # Setup logging with correlation ID support
 setup_logging()
@@ -37,7 +38,10 @@ app.add_middleware(
 app.include_router(email_outreach_router, prefix="/api/v1")
 
 # Signal Outreach Module (LinkedIn keyword search, AI analysis, DM generation)
-app.include_router(signal_outreach_router, prefix="/api/v1") 
+app.include_router(signal_outreach_router, prefix="/api/v1")
+
+# WhatsApp Outreach Module (WATI integration, template messages, webhooks)
+app.include_router(whatsapp_outreach_router, prefix="/api/v1/whatsapp", tags=["WhatsApp"]) 
 
 
 @app.get("/")
