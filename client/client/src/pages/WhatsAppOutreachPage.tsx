@@ -9,16 +9,20 @@ import toast from 'react-hot-toast';
 import WhatsAppActivityModal from '../components/whatsapp/WhatsAppActivityModal';
 import WhatsAppDetailPanel from '../components/whatsapp/WhatsAppDetailPanel';
 import WhatsAppHeader from '../components/whatsapp/WhatsAppHeader';
+import WhatsAppLeadModal from '../components/whatsapp/WhatsAppLeadModal';
 import WhatsAppLeadsList from '../components/whatsapp/WhatsAppLeadsList';
 import {
+    createWhatsAppLead,
     fetchWhatsAppLeadDetail,
     fetchWhatsAppLeads,
     getTemplates,
     getWhatsAppActivities,
     importFromEmailLeads,
+    importFromLinkedInLeads,
     sendWhatsApp
 } from '../services/whatsapp-service/api';
 import {
+    CreateLeadRequest,
     WhatsAppActivity,
     WhatsAppLeadDetail,
     WhatsAppLeadSummary,
@@ -50,6 +54,10 @@ export default function WhatsAppOutreachPage() {
     // Actions
     const [isSending, setIsSending] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
+
+    // Lead Modal (Add/Edit)
+    const [showLeadModal, setShowLeadModal] = useState(false);
+    const [isSavingLead, setIsSavingLead] = useState(false);
 
     // Bulk Selection
     const [selectedForBulk, setSelectedForBulk] = useState<Set<number>>(new Set());
@@ -101,7 +109,8 @@ export default function WhatsAppOutreachPage() {
             const response = await getTemplates();
             setTemplates(response.templates);
             if (response.templates.length > 0 && !selectedTemplate) {
-                setSelectedTemplate(response.templates[0].name);
+                const welcomeTemplate = response.templates.find(t => t.name.toLowerCase().includes('welcome')) || response.templates[0];
+                setSelectedTemplate(welcomeTemplate.name);
             }
         } catch (error) {
             console.error('Failed to load templates:', error);
@@ -198,6 +207,36 @@ export default function WhatsAppOutreachPage() {
         }
     };
 
+    const handleImportFromLinkedIn = async () => {
+        setIsImporting(true);
+        try {
+            const result = await importFromLinkedInLeads();
+            toast.success(`Imported ${result.inserted} new, updated ${result.updated} leads`);
+            loadLeads();
+        } catch (error) {
+            toast.error('Failed to import LinkedIn leads');
+            console.error(error);
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
+    const handleSaveLead = async (data: CreateLeadRequest) => {
+        setIsSavingLead(true);
+        try {
+            const lead = await createWhatsAppLead(data);
+            toast.success(`Lead ${lead.first_name} created successfully`);
+            setShowLeadModal(false);
+            loadLeads();
+            setSelectedLeadId(lead.id);
+        } catch (error) {
+            const err = error as Error;
+            toast.error(err.message || 'Failed to save lead');
+        } finally {
+            setIsSavingLead(false);
+        }
+    };
+
     const toggleBulkSelection = (leadId: number) => {
         setSelectedForBulk(prev => {
             const newSet = new Set(prev);
@@ -238,6 +277,8 @@ export default function WhatsAppOutreachPage() {
                 selectedTemplate={selectedTemplate}
                 onTemplateChange={setSelectedTemplate}
                 onImportFromEmail={handleImportFromEmail}
+                onImportFromLinkedIn={handleImportFromLinkedIn}
+                onAddLead={() => setShowLeadModal(true)}
                 onOpenActivity={() => openActivityModal()}
                 isImporting={isImporting}
             />
@@ -279,6 +320,14 @@ export default function WhatsAppOutreachPage() {
                 activities={activities}
                 loading={loadingActivities}
                 leadName={activityLeadName}
+            />
+
+            {/* Lead Modal */}
+            <WhatsAppLeadModal
+                isOpen={showLeadModal}
+                onClose={() => setShowLeadModal(false)}
+                onSave={handleSaveLead}
+                isSaving={isSavingLead}
             />
         </div>
     );

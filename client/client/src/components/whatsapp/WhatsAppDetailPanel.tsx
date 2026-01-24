@@ -54,11 +54,11 @@ export default function WhatsAppDetailPanel({
 
         switch (leadDetail.last_delivery_status) {
             case 'SENT':
-                return { icon: '📤', text: 'Message sent', color: 'text-blue-600 bg-blue-100' };
+                return { icon: '📤', text: 'Message sent', color: 'text-green-600 bg-green-100' };
             case 'DELIVERED':
                 return { icon: '✅', text: 'Delivered', color: 'text-green-600 bg-green-100' };
             case 'READ':
-                return { icon: '👀', text: 'Read', color: 'text-green-700 bg-green-200' };
+                return { icon: '👀', text: 'Read', color: 'text-cyan-600 bg-cyan-100' };
             case 'FAILED':
                 return { icon: '❌', text: 'Failed', color: 'text-red-600 bg-red-100' };
             default:
@@ -93,39 +93,39 @@ export default function WhatsAppDetailPanel({
                     </div>
 
                     {/* Details Grid */}
-                    <div className="grid grid-cols-2 gap-4 mt-6">
+                    <div className="grid grid-cols-2 gap-6 mt-8">
                         {leadDetail.email && (
-                            <div>
-                                <label className="text-xs text-gray-500 uppercase">Email</label>
-                                <p className="text-gray-800">{leadDetail.email}</p>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Email</label>
+                                <p className="text-gray-900 font-medium">{leadDetail.email}</p>
                             </div>
                         )}
                         {leadDetail.company_name && (
-                            <div>
-                                <label className="text-xs text-gray-500 uppercase">Company</label>
-                                <p className="text-gray-800">{leadDetail.company_name}</p>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Company</label>
+                                <p className="text-gray-900 font-medium">{leadDetail.company_name}</p>
                             </div>
                         )}
                         {leadDetail.designation && (
-                            <div>
-                                <label className="text-xs text-gray-500 uppercase">Designation</label>
-                                <p className="text-gray-800">{leadDetail.designation}</p>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Designation</label>
+                                <p className="text-gray-900 font-medium">{leadDetail.designation}</p>
                             </div>
                         )}
                         {leadDetail.source && (
-                            <div>
-                                <label className="text-xs text-gray-500 uppercase">Source</label>
-                                <p className="text-gray-800 capitalize">{leadDetail.source.replace('_', ' ')}</p>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Source</label>
+                                <p className="text-gray-900 font-medium capitalize">{leadDetail.source.replace('_', ' ')}</p>
                             </div>
                         )}
                         {leadDetail.linkedin_url && (
-                            <div className="col-span-2">
-                                <label className="text-xs text-gray-500 uppercase">LinkedIn</label>
+                            <div className="col-span-2 space-y-1 mt-2">
+                                <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">LinkedIn</label>
                                 <a
                                     href={leadDetail.linkedin_url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline truncate block"
+                                    className="text-blue-600 hover:text-blue-700 hover:underline truncate block font-medium"
                                 >
                                     {leadDetail.linkedin_url}
                                 </a>
@@ -139,18 +139,20 @@ export default function WhatsAppDetailPanel({
                     <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
                         <h3 className="text-lg font-semibold text-gray-800 mb-4">📨 Last Message</h3>
 
-                        <div className="space-y-3">
-                            <div className="flex justify-between">
-                                <span className="text-gray-500">Template:</span>
-                                <span className="font-medium">{leadDetail.last_template_used || '-'}</span>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-50">
+                                <span className="text-sm font-bold text-stone-500 uppercase tracking-wider">Template</span>
+                                <span className="font-semibold text-gray-900">{leadDetail.last_template_used || '-'}</span>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-gray-500">Sent at:</span>
-                                <span>{leadDetail.last_sent_at ? new Date(leadDetail.last_sent_at).toLocaleString() : '-'}</span>
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-50">
+                                <span className="text-sm font-bold text-stone-500 uppercase tracking-wider">Sent at</span>
+                                <span className="text-gray-700 font-medium">{leadDetail.last_sent_at ? new Date(leadDetail.last_sent_at).toLocaleString() : '-'}</span>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-gray-500">Status:</span>
-                                <span className={status.color.split(' ')[0]}>{leadDetail.last_delivery_status}</span>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-bold text-stone-500 uppercase tracking-wider">Status</span>
+                                <span className={`font-bold px-3 py-1 rounded-full text-xs ${status.color}`}>
+                                    {leadDetail.last_delivery_status}
+                                </span>
                             </div>
                             {leadDetail.last_failed_reason && (
                                 <div className="p-3 bg-red-50 rounded-lg text-red-700 text-sm">
@@ -170,8 +172,8 @@ export default function WhatsAppDetailPanel({
                             onClick={onSendWhatsApp}
                             disabled={!canSend || isSending}
                             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors ${canSend && !isSending
-                                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                                 }`}
                         >
                             {isSending ? (
@@ -189,7 +191,7 @@ export default function WhatsAppDetailPanel({
 
                         <button
                             onClick={() => onOpenActivity(leadDetail.id, leadDetail.first_name)}
-                            className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                            className="px-4 py-3 border text-stone-500 border-stone-200 rounded-lg hover:bg-gray-50 transition-colors"
                         >
                             📋 Activity
                         </button>

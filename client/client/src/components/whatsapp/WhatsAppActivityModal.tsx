@@ -58,13 +58,13 @@ export default function WhatsAppActivityModal({
             {/* Modal */}
             <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                    <h2 className="text-lg font-semibold text-gray-800">
+                <div className="flex items-center justify-between p-4 border-b border-stone-100 bg-stone-50/50">
+                    <h2 className="text-lg font-bold text-stone-800">
                         {leadName ? `Activity: ${leadName}` : 'Global Activity Log'}
                     </h2>
                     <button
                         onClick={onClose}
-                        className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="p-1 hover:bg-stone-100 rounded-lg transition-colors text-stone-400"
                     >
                         ✕
                     </button>
@@ -73,35 +73,36 @@ export default function WhatsAppActivityModal({
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-4">
                     {loading ? (
-                        <div className="flex items-center justify-center h-32">
-                            <div className="animate-spin text-2xl">⏳</div>
+                        <div className="flex items-center justify-center h-48">
+                            <div className="animate-spin text-3xl text-green-600">⏳</div>
                         </div>
                     ) : activities.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-32 text-gray-500">
-                            <span className="text-3xl mb-2">📋</span>
-                            <span>No activities yet</span>
+                        <div className="flex flex-col items-center justify-center h-48 text-stone-400">
+                            <span className="text-4xl mb-3 opacity-50">📋</span>
+                            <span className="font-medium">No activities yet</span>
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {activities.map((activity) => (
                                 <div
                                     key={activity.id}
-                                    className="flex gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                                    className="flex gap-4 p-4 rounded-xl border border-stone-50 bg-stone-50/30 hover:bg-stone-50 transition-all group"
                                 >
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getActivityColor(activity.activity_type)}`}>
-                                        {getActivityIcon(activity.activity_type)}
+                                    <div className={`w-12 h-12 rounded-2xl shadow-sm flex items-center justify-center shrink-0 ${getActivityColor(activity.activity_type)}`}>
+                                        <span className="text-xl">{getActivityIcon(activity.activity_type)}</span>
                                     </div>
 
-                                    <div className="flex-1 min-w-0">
-                                        <div className="font-medium text-gray-800">
+                                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                        <div className="font-bold text-stone-800 leading-tight">
                                             {activity.title}
                                         </div>
                                         {activity.description && (
-                                            <div className="text-sm text-gray-500 truncate">
+                                            <div className="text-sm text-stone-500 font-medium truncate mt-0.5">
                                                 {activity.description}
                                             </div>
                                         )}
-                                        <div className="text-xs text-gray-400 mt-1">
+                                        <div className="text-[11px] text-stone-400 font-bold uppercase tracking-tight mt-1.5 flex items-center gap-1.5">
+                                            <span className="opacity-70">🕒</span>
                                             {new Date(activity.created_at).toLocaleString()}
                                         </div>
                                     </div>
@@ -112,12 +113,12 @@ export default function WhatsAppActivityModal({
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-gray-200">
+                <div className="p-4 border-t border-stone-100">
                     <button
                         onClick={onClose}
-                        className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
+                        className="w-full py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-bold transition-all"
                     >
-                        Close
+                        Close Window
                     </button>
                 </div>
             </div>

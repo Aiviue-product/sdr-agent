@@ -80,7 +80,7 @@ export default function WhatsAppLeadsList({
                     {selectedForBulk.size > 0 && (
                         <button
                             onClick={onClearBulk}
-                            className="text-xs text-gray-500 hover:text-gray-700"
+                            className="text-xs text-stone-500 hover:text-stone-700 font-medium"
                         >
                             Clear ({selectedForBulk.size})
                         </button>
@@ -91,12 +91,12 @@ export default function WhatsAppLeadsList({
                 <select
                     value={sourceFilter}
                     onChange={(e) => onSourceFilterChange(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full px-3 py-2 text-sm border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-stone-800 font-medium"
                 >
-                    <option value="">All Sources</option>
-                    <option value="manual">Manual</option>
-                    <option value="email_import">Email Import</option>
-                    <option value="linkedin_import">LinkedIn Import</option>
+                    <option value="" className="text-stone-500">All Sources</option>
+                    <option value="manual" className="text-stone-800">Manual</option>
+                    <option value="email_import" className="text-stone-800">Email Import</option>
+                    <option value="linkedin_import" className="text-stone-800">LinkedIn Import</option>
                 </select>
             </div>
 
@@ -107,9 +107,9 @@ export default function WhatsAppLeadsList({
                         <div className="animate-spin text-2xl">⏳</div>
                     </div>
                 ) : leads.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-32 text-gray-500">
+                    <div className="flex flex-col items-center justify-center h-32 text-stone-500">
                         <span className="text-3xl mb-2">📭</span>
-                        <span>No leads found</span>
+                        <span className="font-medium">No leads found</span>
                     </div>
                 ) : (
                     leads.map((lead) => (
@@ -117,8 +117,8 @@ export default function WhatsAppLeadsList({
                             key={lead.id}
                             onClick={() => onSelectLead(lead.id)}
                             className={`p-3 border-b border-gray-100 cursor-pointer transition-colors ${selectedLeadId === lead.id
-                                    ? 'bg-green-50 border-l-4 border-l-green-500'
-                                    : 'hover:bg-gray-50'
+                                ? 'bg-green-50 border-l-4 border-l-green-500'
+                                : 'hover:bg-gray-50'
                                 }`}
                         >
                             <div className="flex items-start gap-2">
@@ -141,12 +141,12 @@ export default function WhatsAppLeadsList({
                                         {getSourceBadge(lead.source)}
                                     </div>
 
-                                    <div className="text-sm text-gray-500 truncate">
+                                    <div className="text-sm text-stone-500 truncate mt-0.5">
                                         📱 {lead.mobile_number}
                                     </div>
 
                                     {lead.company_name && (
-                                        <div className="text-sm text-gray-400 truncate">
+                                        <div className="text-sm text-stone-500/80 truncate">
                                             🏢 {lead.company_name}
                                         </div>
                                     )}
@@ -167,11 +167,11 @@ export default function WhatsAppLeadsList({
                     <button
                         onClick={() => onPageChange(currentPage - 1)}
                         disabled={currentPage === 0}
-                        className="px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
+                        className="px-3 py-1 text-sm bg-stone-100 text-stone-700 rounded hover:bg-stone-200 disabled:opacity-50 font-medium transition-colors"
                     >
                         ← Prev
                     </button>
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-stone-600 font-medium">
                         {currentPage + 1} / {totalPages}
                     </span>
                     <button

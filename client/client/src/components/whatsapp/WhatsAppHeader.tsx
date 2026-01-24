@@ -9,6 +9,8 @@ interface WhatsAppHeaderProps {
     selectedTemplate: string;
     onTemplateChange: (template: string) => void;
     onImportFromEmail: () => void;
+    onImportFromLinkedIn: () => void;
+    onAddLead: () => void;
     onOpenActivity: () => void;
     isImporting: boolean;
 }
@@ -18,6 +20,8 @@ export default function WhatsAppHeader({
     selectedTemplate,
     onTemplateChange,
     onImportFromEmail,
+    onImportFromLinkedIn,
+    onAddLead,
     onOpenActivity,
     isImporting
 }: WhatsAppHeaderProps) {
@@ -35,40 +39,69 @@ export default function WhatsAppHeader({
 
                 {/* Controls */}
                 <div className="flex items-center gap-4">
+                    {/* Add Lead Button */}
+                    <button
+                        onClick={onAddLead}
+                        className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-white/30"
+                    >
+                        <span>➕</span>
+                        Add Lead
+                    </button>
+
                     {/* Template Selector */}
                     <div className="flex items-center gap-2">
-                        <label className="text-sm text-green-200">Template:</label>
+                        <label className="text-sm text-green-100 font-medium">Template:</label>
                         <select
                             value={selectedTemplate}
                             onChange={(e) => onTemplateChange(e.target.value)}
-                            className="bg-white/20 text-white border border-white/30 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
+                            className="bg-white/20 text-white border border-white/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/50 backdrop-blur-sm font-semibold"
                         >
                             {templates.map((t) => (
-                                <option key={t.name} value={t.name} className="text-gray-800">
+                                <option key={t.name} value={t.name} className="text-stone-900 bg-white">
                                     {t.name}
                                 </option>
                             ))}
                         </select>
                     </div>
 
-                    {/* Import Button */}
-                    <button
-                        onClick={onImportFromEmail}
-                        disabled={isImporting}
-                        className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                        {isImporting ? (
-                            <>
-                                <span className="animate-spin">⏳</span>
-                                Importing...
-                            </>
-                        ) : (
-                            <>
-                                <span>📥</span>
-                                Import from Email
-                            </>
-                        )}
-                    </button>
+                    {/* Import Buttons */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={onImportFromEmail}
+                            disabled={isImporting}
+                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shadow-md"
+                        >
+                            {isImporting ? (
+                                <>
+                                    <span className="animate-spin text-xs">⏳</span>
+                                    Importing...
+                                </>
+                            ) : (
+                                <>
+                                    <span>📩</span>
+                                    Import from Email
+                                </>
+                            )}
+                        </button>
+
+                        <button
+                            onClick={onImportFromLinkedIn}
+                            disabled={isImporting}
+                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 shadow-md"
+                        >
+                            {isImporting ? (
+                                <>
+                                    <span className="animate-spin text-xs">⏳</span>
+                                    Importing...
+                                </>
+                            ) : (
+                                <>
+                                    <span>🔗</span>
+                                    Import from LinkedIn
+                                </>
+                            )}
+                        </button>
+                    </div>
 
                     {/* Activity Button */}
                     <button

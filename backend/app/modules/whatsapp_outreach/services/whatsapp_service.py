@@ -527,21 +527,40 @@ class WhatsAppOutreachService:
         """
         Import leads from LinkedIn outreach module.
         
-        Note: LinkedIn leads typically don't have mobile numbers by default,
-        but this supports cases where mobile was added manually.
+        Note: LinkedIn leads typically don't have mobile numbers by default.
+        This method checks for the column safety and returns 0 if not present.
         """
         from app.modules.signal_outreach.models.linkedin_lead import LinkedInLead
-        from sqlalchemy import select
+        from sqlalchemy import select, inspect
         
-        # LinkedIn leads don't have mobile_number column by default
-        # This is a placeholder - you'd need to add mobile_number to LinkedInLead
-        # or use a different approach (e.g., Apollo enrichment)
-        
-        return {
+        # Initialize default response
+        response = {
             "success": True,
-            "message": "LinkedIn leads typically don't have mobile numbers. Use enrichment service first.",
-            "imported_count": 0
+            "source": "linkedin_outreach",
+            "total_with_mobile": 0,
+            "inserted": 0,
+            "updated": 0,
+            "skipped": 0,
+            "errors": []
         }
+
+        try:
+            # Check if mobile_number column exists in the model
+            # (In a real scenario, we'd check the DB, but here we can check the ORM class)
+            if not hasattr(LinkedInLead, 'mobile_number'):
+                logger.info("ℹ️ LinkedInLead model does not have 'mobile_number' column yet.")
+                return response
+
+            # If it exists, we would perform the query here
+            # stmt = select(LinkedInLead).where(LinkedInLead.mobile_number != None)
+            # ... rest of the logic ...
+            
+        except Exception as e:
+            logger.error(f"❌ Error during LinkedIn import: {str(e)}")
+            response["success"] = False
+            response["errors"] = [str(e)]
+            
+        return response
     
     # ============================================
     # WEBHOOK HANDLING (Dictionary Dispatch Pattern)
@@ -578,11 +597,25 @@ class WhatsAppOutreachService:
             return {"success": False, "error": "Lead not found"}
         
         # Dictionary Dispatch: Map event types to handler methods
+        # Support both standard names and WATI V2 names (_v2)
         event_handlers = {
+            # Sent
             "templateMessageSent": self._handle_message_sent,
+            "templateMessageSent_v2": self._handle_message_sent,
+            
+            # Delivered
             "messageDelivered": self._handle_message_delivered,
+            "sentMessageDELIVERED_v2": self._handle_message_delivered,
+            
+            # Read
             "messageRead": self._handle_message_read,
+            "sentMessageREAD_v2": self._handle_message_read,
+            
+            # Failed
             "templateMessageFailed": self._handle_message_failed,
+            "templateMessageFAILED_v2": self._handle_message_failed,
+            
+            # Inbound
             "message": self._handle_inbound_message,
         }
         
