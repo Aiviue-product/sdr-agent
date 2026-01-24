@@ -181,7 +181,7 @@ class WhatsAppLeadRepository:
         
         lead = WhatsAppLead(**lead_data)
         self.db.add(lead)
-        await self.db.commit()
+        await self.db.flush()  # Flush to get ID, let service manage commit
         await self.db.refresh(lead)
         
         return {k: v for k, v in lead.__dict__.items() if not k.startswith('_')}
@@ -231,7 +231,7 @@ class WhatsAppLeadRepository:
         ).returning(WhatsAppLead)
         
         result = await self.db.execute(stmt)
-        await self.db.commit()
+        # No commit here - let service layer manage transaction
         
         lead = result.scalar_one()
         lead_dict = {k: v for k, v in lead.__dict__.items() if not k.startswith('_')}
@@ -377,7 +377,7 @@ class WhatsAppLeadRepository:
         )
         
         result = await self.db.execute(stmt)
-        await self.db.commit()
+        # No commit - let service layer manage transaction
         
         lead = result.scalar_one_or_none()
         if lead:
@@ -420,7 +420,7 @@ class WhatsAppLeadRepository:
         )
         
         await self.db.execute(stmt)
-        await self.db.commit()
+        # No commit - let service layer manage transaction
     
     async def update_delivery_status(self, lead_id: int, status: str, failed_reason: str = None):
         """Update delivery status from webhook."""
@@ -438,7 +438,7 @@ class WhatsAppLeadRepository:
         )
         
         await self.db.execute(stmt)
-        await self.db.commit()
+        # No commit - let service layer manage transaction
     
     # ============================================
     # DELETE OPERATIONS

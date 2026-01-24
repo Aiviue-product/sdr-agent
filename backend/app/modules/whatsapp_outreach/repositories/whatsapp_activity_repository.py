@@ -157,7 +157,7 @@ class WhatsAppActivityRepository:
         )
         
         self.db.add(activity)
-        await self.db.commit()
+        await self.db.flush()  # Flush to get ID, let service manage commit
         await self.db.refresh(activity)
         
         return {k: v for k, v in activity.__dict__.items() if not k.startswith('_')}

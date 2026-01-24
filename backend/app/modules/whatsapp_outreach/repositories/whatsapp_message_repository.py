@@ -121,7 +121,7 @@ class WhatsAppMessageRepository:
         )
         
         self.db.add(message)
-        await self.db.commit()
+        await self.db.flush()  # Flush to get ID, let service manage commit
         await self.db.refresh(message)
         
         return {k: v for k, v in message.__dict__.items() if not k.startswith('_')}
@@ -149,7 +149,7 @@ class WhatsAppMessageRepository:
         )
         
         self.db.add(message)
-        await self.db.commit()
+        await self.db.flush()  # Flush to get ID, let service manage commit
         await self.db.refresh(message)
         
         return {k: v for k, v in message.__dict__.items() if not k.startswith('_')}
@@ -185,7 +185,7 @@ class WhatsAppMessageRepository:
         )
         
         await self.db.execute(stmt)
-        await self.db.commit()
+        # No commit - let service layer manage transaction
     
     async def update_status_by_wati_id(
         self,
@@ -217,6 +217,6 @@ class WhatsAppMessageRepository:
         )
         
         result = await self.db.execute(stmt)
-        await self.db.commit()
+        # No commit - let service layer manage transaction
         
         return result.rowcount > 0
