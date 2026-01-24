@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     UNIPILE_ACCOUNT_ID: str = ""
     UNIPILE_WEBHOOK_SECRET: str = ""  # Optional: Set to enable webhook signature verification
 
+    # WATI WhatsApp Messaging API
+    WATI_API_TOKEN: str = ""
+    WATI_API_ENDPOINT: str = "https://live-mt-server.wati.io/105961"
+    WATI_CHANNEL_NUMBER: str = ""  # Your WhatsApp Business number (sender)
+    WATI_DEFAULT_COUNTRY_CODE: str = "91"  # Default country code (India)
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,

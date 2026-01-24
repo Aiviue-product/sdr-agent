@@ -29,6 +29,10 @@ from app.shared.db.base import Base
 from app.modules.email_outreach.models.lead import Lead
 from app.modules.email_outreach.models.fate_matrix import FateMatrix
 from app.modules.signal_outreach.models.linkedin_lead import LinkedInLead
+from app.modules.signal_outreach.models.linkedin_activity import LinkedInActivity
+from app.modules.whatsapp_outreach.models.whatsapp_lead import WhatsAppLead
+from app.modules.whatsapp_outreach.models.whatsapp_message import WhatsAppMessage
+from app.modules.whatsapp_outreach.models.whatsapp_activity import WhatsAppActivity
 
 # This is the Alembic Config object
 config = context.config
