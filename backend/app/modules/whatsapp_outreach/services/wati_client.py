@@ -45,8 +45,15 @@ class WATIClient:
     
     def _get_headers(self) -> Dict[str, str]:
         """Get common headers for WATI API requests."""
+        # Handle token that may or may not have 'Bearer ' prefix
+        token = self.api_token
+        if token and token.startswith("Bearer "):
+            auth_value = token  # Already has Bearer prefix
+        else:
+            auth_value = f"Bearer {token}"
+        
         return {
-            "Authorization": f"Bearer {self.api_token}",
+            "Authorization": auth_value,
             "Content-Type": "application/json",
             "Accept": "application/json"
         }

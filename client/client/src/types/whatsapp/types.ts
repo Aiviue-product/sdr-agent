@@ -71,7 +71,7 @@ export interface ConversationResponse {
 // ============================================
 
 export interface WhatsAppTemplate {
-    id?: number;
+    id?: string;  // WATI uses MongoDB ObjectId (string)
     name: string;
     category?: string;
     body?: string;

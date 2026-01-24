@@ -214,7 +214,7 @@ class BulkEligibilityResponse(BaseModel):
 
 class TemplateItem(BaseModel):
     """Single template for dropdown/selection"""
-    id: Optional[int] = None
+    id: Optional[str] = None  # WATI uses MongoDB ObjectId (string)
     name: str
     category: Optional[str] = None
     body: Optional[str] = None
