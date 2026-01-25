@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     
     # Unipile LinkedIn Messaging API
     UNIPILE_API_KEY: str = ""
-    UNIPILE_DSN: str = "https://api16.unipile.com:14612"
+    UNIPILE_DSN: str = "https://api12.unipile.com:14263" 
     UNIPILE_ACCOUNT_ID: str = ""
     UNIPILE_WEBHOOK_SECRET: str = ""  # Optional: Set to enable webhook signature verification
 
