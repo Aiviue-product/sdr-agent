@@ -3,6 +3,7 @@ LinkedIn Lead Repository
 All database operations for the linkedin_outreach_leads table.
 
 HYBRID APPROACH: One lead per person, but append new posts to post_data array.
+OPTIMISTIC LOCKING: Uses version column to prevent concurrent modifications.
 """
 import json
 from typing import Optional, List
@@ -10,7 +11,9 @@ from sqlalchemy import text, select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.shared.utils.json_utils import safe_json_parse
+from app.shared.utils.exceptions import ConcurrentModificationError
 from app.modules.signal_outreach.models.linkedin_lead import LinkedInLead
+from app.modules.signal_outreach.models.linkedin_activity import LinkedInActivity
 from app.shared.core.constants import DEFAULT_PAGE_SIZE
 
 
@@ -32,6 +35,25 @@ class LinkedInLeadRepository:
         lead = result.scalar_one_or_none()
         
         # Convert to dict for compatibility with existing code that expects mappings
+        return lead.__dict__ if lead else None
+
+    async def get_by_provider_id(self, provider_id: str):
+        """
+        Fetch a single LinkedIn lead by Unipile provider_id.
+        """
+        query = select(LinkedInLead).where(LinkedInLead.provider_id == provider_id)
+        result = await self.db.execute(query)
+        lead = result.scalar_one_or_none()
+        return lead.__dict__ if lead else None
+
+    async def get_by_linkedin_url(self, linkedin_url: str):
+        """
+        Fetch a single LinkedIn lead by their profile URL.
+        Used for deduplication.
+        """
+        query = select(LinkedInLead).where(LinkedInLead.linkedin_url == linkedin_url)
+        result = await self.db.execute(query)
+        lead = result.scalar_one_or_none()
         return lead.__dict__ if lead else None
 
     async def get_leads_by_ids(self, lead_ids: List[int]) -> List[dict]:
@@ -240,7 +262,8 @@ class LinkedInLeadRepository:
         - If lead is new: INSERT normally
         - If lead already exists (race condition): Append post to existing post_data
         
-        TRANSACTION: All inserts happen atomically - if one fails, all are rolled back.
+        NOTE: This method does NOT commit. The calling service is responsible for
+        committing the transaction to ensure atomic operations across multiple calls.
         """
         if not leads:
             return 0
@@ -266,39 +289,37 @@ class LinkedInLeadRepository:
                 updated_at = NOW()
         """)
 
-        # Use nested transaction (savepoint) for atomic bulk insert
-        async with self.db.begin_nested():
-            for lead in leads:
-                # Wrap single post in array for consistency
-                post_data = lead.get("post_data", {})
-                if isinstance(post_data, dict):
-                    # Add search_keyword to the post object for filtering
-                    post_data["search_keyword"] = lead.get("search_keyword")
-                    post_data_array = [post_data]
-                else:
-                    post_data_array = post_data if isinstance(post_data, list) else []
-                
-                params = {
-                    "full_name": lead.get("full_name"),
-                    "first_name": lead.get("first_name"),
-                    "last_name": lead.get("last_name"),
-                    "company_name": lead.get("company_name"),
-                    "is_company": lead.get("is_company", False),
-                    "linkedin_url": lead.get("linkedin_url"),
-                    "headline": lead.get("headline"),
-                    "profile_image_url": lead.get("profile_image_url"),
-                    "search_keyword": lead.get("search_keyword"),
-                    "post_data": json.dumps(post_data_array),
-                    "hiring_signal": lead.get("hiring_signal", False),
-                    "hiring_roles": lead.get("hiring_roles"),
-                    "pain_points": lead.get("pain_points"),
-                    "ai_variables": json.dumps(lead.get("ai_variables", {})),
-                    "linkedin_dm": lead.get("linkedin_dm")
-                }
-                await self.db.execute(query, params)
+        # Execute all inserts (transaction managed by service layer)
+        for lead in leads:
+            # Wrap single post in array for consistency
+            post_data = lead.get("post_data", {})
+            if isinstance(post_data, dict):
+                # Add search_keyword to the post object for filtering
+                post_data["search_keyword"] = lead.get("search_keyword")
+                post_data_array = [post_data]
+            else:
+                post_data_array = post_data if isinstance(post_data, list) else []
+            
+            params = {
+                "full_name": lead.get("full_name"),
+                "first_name": lead.get("first_name"),
+                "last_name": lead.get("last_name"),
+                "company_name": lead.get("company_name"),
+                "is_company": lead.get("is_company", False),
+                "linkedin_url": lead.get("linkedin_url"),
+                "headline": lead.get("headline"),
+                "profile_image_url": lead.get("profile_image_url"),
+                "search_keyword": lead.get("search_keyword"),
+                "post_data": json.dumps(post_data_array),
+                "hiring_signal": lead.get("hiring_signal", False),
+                "hiring_roles": lead.get("hiring_roles"),
+                "pain_points": lead.get("pain_points"),
+                "ai_variables": json.dumps(lead.get("ai_variables", {})),
+                "linkedin_dm": lead.get("linkedin_dm")
+            }
+            await self.db.execute(query, params)
         
-        # Commit after successful nested transaction
-        await self.db.commit()
+        # NO COMMIT HERE - service layer handles transaction
         return len(leads)
 
     async def _append_posts_to_existing(self, updates: List[dict]) -> int:
@@ -306,7 +327,8 @@ class LinkedInLeadRepository:
         Append new posts to existing leads' post_data array.
         Uses PostgreSQL JSONB concatenation.
         
-        TRANSACTION: All updates happen atomically - if one fails, all are rolled back.
+        NOTE: This method does NOT commit. The calling service is responsible for
+        committing the transaction to ensure atomic operations across multiple calls.
         """
         if not updates:
             return 0
@@ -319,58 +341,106 @@ class LinkedInLeadRepository:
             WHERE id = :id
         """)
 
-        # Use nested transaction (savepoint) for atomic bulk update
-        async with self.db.begin_nested():
-            for update in updates:
-                new_post = update["new_post"]
-                if isinstance(new_post, dict):
-                    # Add search_keyword to the post
-                    new_post["search_keyword"] = update.get("search_keyword")
-                    # Wrap in array for JSONB array concatenation
-                    new_post_json = json.dumps([new_post])
-                else:
-                    new_post_json = json.dumps([new_post])
-                
-                await self.db.execute(query, {
-                    "id": update["id"],
-                    "new_post_json": new_post_json
-                })
+        # Execute all updates (transaction managed by service layer)
+        for upd in updates:
+            new_post = upd["new_post"]
+            if isinstance(new_post, dict):
+                # Add search_keyword to the post
+                new_post["search_keyword"] = upd.get("search_keyword")
+                # Wrap in array for JSONB array concatenation
+                new_post_json = json.dumps([new_post])
+            else:
+                new_post_json = json.dumps([new_post])
+            
+            await self.db.execute(query, {
+                "id": upd["id"],
+                "new_post_json": new_post_json
+            })
         
-        # Commit after successful nested transaction
-        await self.db.commit()
+        # NO COMMIT HERE - service layer handles transaction
         return len(updates)
 
     # ============================================
     # UPDATE OPERATIONS  
     # ============================================
 
-    async def update_dm_sent(self, lead_id: int):
+    async def update_dm_sent(self, lead_id: int, current_version: Optional[int] = None):
         """
         Mark a LinkedIn lead's DM as sent.
+        
+        OPTIMISTIC LOCKING: If current_version provided, checks version matches before update.
+        
+        NOTE: This method does NOT commit. The calling service is responsible for
+        committing the transaction.
         """
-        stmt = (
-            update(LinkedInLead)
-            .where(LinkedInLead.id == lead_id)
-            .values(is_dm_sent=True, dm_sent_at=func.now())
-        )
-        await self.db.execute(stmt)
-        await self.db.commit()
+        if current_version is not None:
+            stmt = (
+                update(LinkedInLead)
+                .where(
+                    LinkedInLead.id == lead_id,
+                    LinkedInLead.version == current_version
+                )
+                .values(
+                    is_dm_sent=True, 
+                    dm_sent_at=func.now(),
+                    version=LinkedInLead.version + 1
+                )
+            )
+            result = await self.db.execute(stmt)
+            if result.rowcount == 0:
+                raise ConcurrentModificationError("LinkedInLead", lead_id)
+        else:
+            stmt = (
+                update(LinkedInLead)
+                .where(LinkedInLead.id == lead_id)
+                .values(
+                    is_dm_sent=True, 
+                    dm_sent_at=func.now(),
+                    version=LinkedInLead.version + 1
+                )
+            )
+            await self.db.execute(stmt)
+        # NO COMMIT HERE - service layer handles transaction
 
-    async def update_connection_sent(self, lead_id: int):
+    async def update_connection_sent(self, lead_id: int, current_version: Optional[int] = None):
         """
         Mark a LinkedIn lead's connection request as sent (pending).
+        
+        OPTIMISTIC LOCKING: If current_version provided, checks version matches before update.
+        
+        NOTE: This method does NOT commit. The calling service is responsible for
+        committing the transaction.
         """
-        stmt = (
-            update(LinkedInLead)
-            .where(LinkedInLead.id == lead_id)
-            .values(
-                connection_status="pending", 
-                connection_sent_at=func.now(),
-                updated_at=func.now()
+        if current_version is not None:
+            stmt = (
+                update(LinkedInLead)
+                .where(
+                    LinkedInLead.id == lead_id,
+                    LinkedInLead.version == current_version
+                )
+                .values(
+                    connection_status="pending", 
+                    connection_sent_at=func.now(),
+                    updated_at=func.now(),
+                    version=LinkedInLead.version + 1
+                )
             )
-        )
-        await self.db.execute(stmt)
-        await self.db.commit()
+            result = await self.db.execute(stmt)
+            if result.rowcount == 0:
+                raise ConcurrentModificationError("LinkedInLead", lead_id)
+        else:
+            stmt = (
+                update(LinkedInLead)
+                .where(LinkedInLead.id == lead_id)
+                .values(
+                    connection_status="pending", 
+                    connection_sent_at=func.now(),
+                    updated_at=func.now(),
+                    version=LinkedInLead.version + 1
+                )
+            )
+            await self.db.execute(stmt)
+        # NO COMMIT HERE - service layer handles transaction
 
     async def update_ai_enrichment(
         self, 
@@ -379,23 +449,104 @@ class LinkedInLeadRepository:
         hiring_roles: str,
         pain_points: str,
         ai_variables: dict,
-        linkedin_dm: str
+        linkedin_dm: str,
+        current_version: Optional[int] = None
     ):
         """
         Update AI enrichment data for a lead.
         Called after AI analysis is complete.
+        
+        OPTIMISTIC LOCKING:
+        If current_version is provided, the update will only succeed if the 
+        lead's version matches. This prevents lost updates from race conditions.
+        
+        Args:
+            lead_id: The lead to update
+            hiring_signal: Whether hiring intent was detected
+            hiring_roles: Roles being hired for
+            pain_points: Business challenges identified
+            ai_variables: Full AI analysis dict
+            linkedin_dm: Generated DM message
+            current_version: Optional - if provided, enforces optimistic locking
+        
+        Raises:
+            ConcurrentModificationError: If version mismatch (someone else updated first)
+        
+        NOTE: This method does NOT commit. The calling service is responsible for
+        committing the transaction.
         """
-        stmt = (
-            update(LinkedInLead)
-            .where(LinkedInLead.id == lead_id)
-            .values(
-                hiring_signal=hiring_signal,
-                hiring_roles=hiring_roles,
-                pain_points=pain_points,
-                ai_variables=ai_variables, # SQLAlchemy JSONB handles dict -> json automatically
-                linkedin_dm=linkedin_dm,
-                updated_at=func.now()
+        if current_version is not None:
+            # Optimistic locking: check version and increment
+            stmt = (
+                update(LinkedInLead)
+                .where(
+                    LinkedInLead.id == lead_id,
+                    LinkedInLead.version == current_version  # Version check
+                )
+                .values(
+                    hiring_signal=hiring_signal,
+                    hiring_roles=hiring_roles,
+                    pain_points=pain_points,
+                    ai_variables=ai_variables,
+                    linkedin_dm=linkedin_dm,
+                    version=LinkedInLead.version + 1,  # Increment version
+                    updated_at=func.now()
+                )
             )
+            result = await self.db.execute(stmt)
+            
+            # Check if update was applied
+            if result.rowcount == 0:
+                raise ConcurrentModificationError(
+                    entity_type="LinkedInLead",
+                    entity_id=lead_id
+                )
+        else:
+            # No optimistic locking - just update (still increments version)
+            stmt = (
+                update(LinkedInLead)
+                .where(LinkedInLead.id == lead_id)
+                .values(
+                    hiring_signal=hiring_signal,
+                    hiring_roles=hiring_roles,
+                    pain_points=pain_points,
+                    ai_variables=ai_variables,
+                    linkedin_dm=linkedin_dm,
+                    version=LinkedInLead.version + 1,  # Always increment version
+                    updated_at=func.now()
+                )
+            )
+            await self.db.execute(stmt)
+        # NO COMMIT HERE - service layer handles transaction
+
+    # ============================================
+    # ACTIVITY OPERATIONS
+    # ============================================
+
+    async def create_activity(
+        self,
+        lead_id: int,
+        activity_type: str,
+        message: Optional[str] = None,
+        lead_name: Optional[str] = None,
+        lead_linkedin_url: Optional[str] = None,
+        extra_data: Optional[dict] = None
+    ) -> LinkedInActivity:
+        """
+        Create a new activity record for a lead.
+        
+        NOTE: This method does NOT commit. The calling service is responsible for
+        committing the transaction.
+        """
+        activity = LinkedInActivity(
+            lead_id=lead_id,
+            activity_type=activity_type,
+            message=message,
+            lead_name=lead_name,
+            lead_linkedin_url=lead_linkedin_url,
+            extra_data=extra_data or {}
         )
-        await self.db.execute(stmt)
-        await self.db.commit()
+        self.db.add(activity)
+        return activity
+
+

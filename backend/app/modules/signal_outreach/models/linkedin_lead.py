@@ -73,6 +73,13 @@ class LinkedInLead(Base):
     last_reply_at = Column(DateTime(timezone=True), nullable=True)  # When they replied
     
     # ============================================
+    # OPTIMISTIC LOCKING
+    # ============================================
+    # Version column for optimistic locking - prevents lost updates from race conditions.
+    # Increments on every update. Updates check version to ensure no concurrent modification.
+    version = Column(BigInteger, default=1, nullable=False, server_default='1')
+    
+    # ============================================
     # TIMESTAMPS
     # ============================================
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -14,6 +14,7 @@ from app.shared.utils.cache import (
     CACHE_KEY_KEYWORDS, 
     CACHE_TTL_KEYWORDS
 )
+from app.shared.utils.exceptions import ConcurrentModificationError
 from app.modules.signal_outreach.repositories.linkedin_lead_repository import LinkedInLeadRepository
 from app.modules.signal_outreach.services.linkedin_outreach_service import LinkedInOutreachService
 from app.modules.signal_outreach.api.schemas import (
@@ -237,6 +238,9 @@ async def refresh_single_lead_analysis(
             "linkedin_dm": ai_result.get("linkedin_dm", "")[:100] + "..." if len(ai_result.get("linkedin_dm", "")) > 100 else ai_result.get("linkedin_dm", "")
         }
         
+    except ConcurrentModificationError as e:
+        logger.warning(f"Concurrent modification for lead {lead_id}: {e}")
+        raise HTTPException(status_code=409, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:

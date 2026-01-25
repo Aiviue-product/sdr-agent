@@ -10,6 +10,7 @@ from app.shared.utils.cache import (
     CACHE_TTL_RATE_LIMITS,
     get_rate_limits_cache_key
 )
+from app.shared.utils.exceptions import ConcurrentModificationError, EntityNotFoundError
 
 __all__ = [
     "safe_json_parse", 
@@ -19,5 +20,7 @@ __all__ = [
     "CACHE_KEY_RATE_LIMITS",
     "CACHE_TTL_KEYWORDS",
     "CACHE_TTL_RATE_LIMITS",
-    "get_rate_limits_cache_key"
+    "get_rate_limits_cache_key",
+    "ConcurrentModificationError",
+    "EntityNotFoundError"
 ]
