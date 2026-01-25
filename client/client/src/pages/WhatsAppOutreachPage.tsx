@@ -12,20 +12,28 @@ import WhatsAppHeader from '../components/whatsapp/WhatsAppHeader';
 import WhatsAppLeadModal from '../components/whatsapp/WhatsAppLeadModal';
 import WhatsAppLeadsList from '../components/whatsapp/WhatsAppLeadsList';
 import {
+    bulkSendWhatsApp,
     createWhatsAppLead,
+    deleteWhatsAppLead,
     fetchWhatsAppLeadDetail,
     fetchWhatsAppLeads,
+    getConversation,
     getTemplates,
     getWhatsAppActivities,
+    getWhatsAppConfig,
+    globalSyncWati,
     importFromEmailLeads,
     importFromLinkedInLeads,
-    sendWhatsApp
+    sendWhatsApp,
+    syncMessageStatus,
+    updateWhatsAppLead
 } from '../services/whatsapp-service/api';
 import {
     CreateLeadRequest,
     WhatsAppActivity,
     WhatsAppLeadDetail,
     WhatsAppLeadSummary,
+    WhatsAppMessage,
     WhatsAppTemplate
 } from '../types/whatsapp';
 
@@ -47,16 +55,26 @@ export default function WhatsAppOutreachPage() {
     const [selectedLeadDetail, setSelectedLeadDetail] = useState<WhatsAppLeadDetail | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
+    // Conversation
+    const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
+    const [loadingMessages, setLoadingMessages] = useState(false);
+
     // Templates
     const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
     const [selectedTemplate, setSelectedTemplate] = useState<string>('');
 
     // Actions
     const [isSending, setIsSending] = useState(false);
-    const [isImporting, setIsImporting] = useState(false);
+    const [isImportingEmail, setIsImportingEmail] = useState(false);
+    const [isImportingLinkedIn, setIsImportingLinkedIn] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [isGlobalSyncing, setIsGlobalSyncing] = useState(false);
+    const [isBulkSending, setIsBulkSending] = useState(false);
 
     // Lead Modal (Add/Edit)
     const [showLeadModal, setShowLeadModal] = useState(false);
+    const [editingLead, setEditingLead] = useState<WhatsAppLeadDetail | null>(null);
     const [isSavingLead, setIsSavingLead] = useState(false);
 
     // Bulk Selection
@@ -91,18 +109,33 @@ export default function WhatsAppOutreachPage() {
         }
     }, [currentPage, sourceFilter]);
 
+    const loadConversation = useCallback(async (leadId: number) => {
+        setLoadingMessages(true);
+        try {
+            const response = await getConversation(leadId);
+            // Reverse messages for WhatsApp style (newest at bottom)
+            setMessages(response.messages.reverse());
+        } catch (error) {
+            console.error('Failed to load conversation:', error);
+        } finally {
+            setLoadingMessages(false);
+        }
+    }, []);
+
     const loadLeadDetail = useCallback(async (leadId: number) => {
         setLoadingDetail(true);
         try {
             const detail = await fetchWhatsAppLeadDetail(leadId);
             setSelectedLeadDetail(detail);
+            // Also load conversation
+            loadConversation(leadId);
         } catch (error) {
             toast.error('Failed to load lead details');
             console.error(error);
         } finally {
             setLoadingDetail(false);
         }
-    }, []);
+    }, [loadConversation]);
 
     const loadTemplates = useCallback(async () => {
         try {
@@ -146,6 +179,25 @@ export default function WhatsAppOutreachPage() {
     useEffect(() => {
         loadTemplates();
     }, [loadTemplates]);
+
+    // Background WATI config check - runs once on page load
+    useEffect(() => {
+        const checkConfig = async () => {
+            try {
+                const config = await getWhatsAppConfig();
+                if (!config.configured) {
+                    toast.error('⚠️ WATI is not configured. Check your API settings.', {
+                        duration: 5000,
+                        icon: '⚙️'
+                    });
+                }
+            } catch (error) {
+                console.error('Config check failed:', error);
+                toast.error('Unable to verify WATI configuration', { duration: 3000 });
+            }
+        };
+        checkConfig();
+    }, []);
 
     useEffect(() => {
         if (selectedLeadId) {
@@ -194,7 +246,7 @@ export default function WhatsAppOutreachPage() {
     };
 
     const handleImportFromEmail = async () => {
-        setIsImporting(true);
+        setIsImportingEmail(true);
         try {
             const result = await importFromEmailLeads();
             toast.success(`Imported ${result.inserted} new, updated ${result.updated} leads`);
@@ -203,12 +255,12 @@ export default function WhatsAppOutreachPage() {
             toast.error('Failed to import leads');
             console.error(error);
         } finally {
-            setIsImporting(false);
+            setIsImportingEmail(false);
         }
     };
 
     const handleImportFromLinkedIn = async () => {
-        setIsImporting(true);
+        setIsImportingLinkedIn(true);
         try {
             const result = await importFromLinkedInLeads();
             toast.success(`Imported ${result.inserted} new, updated ${result.updated} leads`);
@@ -217,23 +269,77 @@ export default function WhatsAppOutreachPage() {
             toast.error('Failed to import LinkedIn leads');
             console.error(error);
         } finally {
-            setIsImporting(false);
+            setIsImportingLinkedIn(false);
         }
     };
 
     const handleSaveLead = async (data: CreateLeadRequest) => {
         setIsSavingLead(true);
         try {
-            const lead = await createWhatsAppLead(data);
-            toast.success(`Lead ${lead.first_name} created successfully`);
-            setShowLeadModal(false);
+            if (editingLead) {
+                // Update existing lead
+                const lead = await updateWhatsAppLead(editingLead.id, data);
+                toast.success(`Lead ${lead.first_name} updated successfully`);
+                // Refresh the detail panel with updated data
+                loadLeadDetail(lead.id);
+            } else {
+                // Create new lead
+                const lead = await createWhatsAppLead(data);
+                toast.success(`Lead ${lead.first_name} created successfully`);
+                setSelectedLeadId(lead.id);
+            }
+            closeLeadModal();
             loadLeads();
-            setSelectedLeadId(lead.id);
         } catch (error) {
             const err = error as Error;
             toast.error(err.message || 'Failed to save lead');
         } finally {
             setIsSavingLead(false);
+        }
+    };
+
+    const handleEditLead = (lead: WhatsAppLeadDetail) => {
+        setEditingLead(lead);
+        setShowLeadModal(true);
+    };
+
+    const closeLeadModal = () => {
+        setShowLeadModal(false);
+        setEditingLead(null);
+    };
+
+    const handleDeleteLead = async (leadId: number) => {
+        setIsDeleting(true);
+        try {
+            await deleteWhatsAppLead(leadId);
+            toast.success('Lead deleted successfully');
+            setSelectedLeadId(null);
+            setSelectedLeadDetail(null);
+            loadLeads();
+        } catch (error) {
+            const err = error as Error;
+            toast.error(err.message || 'Failed to delete lead');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleSyncStatus = async (leadId: number) => {
+        setIsSyncing(true);
+        try {
+            const result = await syncMessageStatus(leadId);
+            if (result.success) {
+                toast.success('Status synced from WATI');
+                // Refresh lead detail to show updated status
+                loadLeadDetail(leadId);
+            } else {
+                toast.error('Sync returned no updates');
+            }
+        } catch (error) {
+            const err = error as Error;
+            toast.error(err.message || 'Failed to sync status');
+        } finally {
+            setIsSyncing(false);
         }
     };
 
@@ -253,6 +359,44 @@ export default function WhatsAppOutreachPage() {
         setSelectedForBulk(new Set());
     };
 
+    const handleBulkSend = async () => {
+        if (selectedForBulk.size === 0) {
+            toast.error('No leads selected');
+            return;
+        }
+        if (!selectedTemplate) {
+            toast.error('Please select a template first');
+            return;
+        }
+
+        setIsBulkSending(true);
+        try {
+            const leadIds = Array.from(selectedForBulk);
+            const result = await bulkSendWhatsApp({
+                lead_ids: leadIds,
+                template_name: selectedTemplate,
+                broadcast_name: `bulk_${Date.now()}`
+            });
+
+            if (result.success) {
+                toast.success(`✅ Sent: ${result.success_count} | ❌ Failed: ${result.failed_count}`);
+                clearBulkSelection();
+                loadLeads(); // Refresh left panel
+                // Also refresh the selected lead's detail if it was in the bulk send
+                if (selectedLeadId && leadIds.includes(selectedLeadId)) {
+                    loadLeadDetail(selectedLeadId);
+                }
+            } else {
+                toast.error('Bulk send failed');
+            }
+        } catch (error) {
+            const err = error as Error;
+            toast.error(err.message || 'Bulk send failed');
+        } finally {
+            setIsBulkSending(false);
+        }
+    };
+
     const openActivityModal = (leadId?: number, leadName?: string) => {
         setShowActivityModal(true);
         loadActivities(leadId, leadName);
@@ -263,6 +407,35 @@ export default function WhatsAppOutreachPage() {
         setActivities([]);
         setActivityLeadId(null);
         setActivityLeadName('');
+    };
+
+    // ============================================
+    const handleGlobalSync = async () => {
+        setIsGlobalSyncing(true);
+        try {
+            const result = await globalSyncWati();
+            if (result.success) {
+                toast.success(`Sync complete! Leads: ${result.leads_processed}, Messages: ${result.messages_synced}`);
+
+                // Refresh all UI data
+                await Promise.all([
+                    loadTemplates(),
+                    loadLeads()
+                ]);
+
+                // If a lead is selected, refresh its details too
+                if (selectedLeadId) {
+                    loadLeadDetail(selectedLeadId);
+                }
+            } else {
+                toast.error('Sync failed');
+            }
+        } catch (error) {
+            const err = error as Error;
+            toast.error(err.message || 'Failed to sync data');
+        } finally {
+            setIsGlobalSyncing(false);
+        }
     };
 
     // ============================================
@@ -278,9 +451,15 @@ export default function WhatsAppOutreachPage() {
                 onTemplateChange={setSelectedTemplate}
                 onImportFromEmail={handleImportFromEmail}
                 onImportFromLinkedIn={handleImportFromLinkedIn}
-                onAddLead={() => setShowLeadModal(true)}
+                onAddLead={() => {
+                    setEditingLead(null);
+                    setShowLeadModal(true);
+                }}
                 onOpenActivity={() => openActivityModal()}
-                isImporting={isImporting}
+                onSync={handleGlobalSync}
+                isImportingEmail={isImportingEmail}
+                isImportingLinkedIn={isImportingLinkedIn}
+                isSyncing={isGlobalSyncing}
             />
 
             {/* Main Content */}
@@ -300,16 +479,26 @@ export default function WhatsAppOutreachPage() {
                     selectedForBulk={selectedForBulk}
                     onToggleBulk={toggleBulkSelection}
                     onClearBulk={clearBulkSelection}
+                    onBulkSend={handleBulkSend}
+                    isBulkSending={isBulkSending}
+                    hasTemplate={!!selectedTemplate}
                 />
 
                 {/* Right Panel: Lead Details */}
                 <WhatsAppDetailPanel
                     leadDetail={selectedLeadDetail}
-                    loading={loadingDetail}
+                    messages={messages}
+                    loadingDetails={loadingDetail}
+                    loadingMessages={loadingMessages}
                     selectedTemplate={selectedTemplate}
                     onSendWhatsApp={handleSendWhatsApp}
                     onOpenActivity={(id, name) => openActivityModal(id, name)}
+                    onDeleteLead={handleDeleteLead}
+                    onSyncStatus={handleSyncStatus}
+                    onEditLead={handleEditLead}
                     isSending={isSending}
+                    isDeleting={isDeleting}
+                    isSyncing={isSyncing}
                 />
             </div>
 
@@ -325,8 +514,9 @@ export default function WhatsAppOutreachPage() {
             {/* Lead Modal */}
             <WhatsAppLeadModal
                 isOpen={showLeadModal}
-                onClose={() => setShowLeadModal(false)}
+                onClose={closeLeadModal}
                 onSave={handleSaveLead}
+                lead={editingLead}
                 isSaving={isSavingLead}
             />
         </div>

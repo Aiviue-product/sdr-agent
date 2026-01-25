@@ -307,6 +307,23 @@ async def sync_message_status(lead_id: int, db: AsyncSession = Depends(get_db)):
     return result
 
 
+@router.post("/sync-all", summary="Sync all data with WATI")
+async def sync_all_data(db: AsyncSession = Depends(get_db)):
+    """
+    Perform a deep sync:
+    1. Refresh templates from WATI
+    2. Sync delivery status for all active leads
+    3. Fetch new messages (sent and received)
+    """
+    service = WhatsAppOutreachService(db)
+    result = await service.sync_all_wati_data()
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Sync failed"))
+        
+    return result
+
+
 # ============================================
 # BULK OPERATIONS
 # ============================================

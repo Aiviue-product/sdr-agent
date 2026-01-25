@@ -160,6 +160,17 @@ class WhatsAppLeadRepository:
         leads = result.scalars().all()
         
         return [{k: v for k, v in lead.__dict__.items() if not k.startswith('_')} for lead in leads]
+
+    async def get_leads_needing_sync(self, limit: int = 100) -> List[dict]:
+        """Get leads that have sent messages and need status/reply sync."""
+        query = select(WhatsAppLead).where(
+            WhatsAppLead.is_wa_sent == True
+        ).order_by(WhatsAppLead.updated_at.desc()).limit(limit)
+        
+        result = await self.db.execute(query)
+        leads = result.scalars().all()
+        
+        return [{k: v for k, v in lead.__dict__.items() if not k.startswith('_')} for lead in leads]
     
     # ============================================
     # CREATE/UPSERT OPERATIONS

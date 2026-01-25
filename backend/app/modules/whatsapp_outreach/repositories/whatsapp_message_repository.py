@@ -4,7 +4,7 @@ Database operations for the whatsapp_messages table.
 
 Handles full conversation history tracking for each lead.
 """
-from typing import Optional, List
+from typing import Optional, List, Set
 from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,6 +87,15 @@ class WhatsAppMessageRepository:
         messages = result.scalars().all()
         
         return [{k: v for k, v in m.__dict__.items() if not k.startswith('_')} for m in messages]
+    
+    async def get_existing_wati_ids(self, lead_id: int) -> Set[str]:
+        """Get all wati_message_ids for a lead to avoid duplicates."""
+        query = select(WhatsAppMessage.wati_message_id).where(
+            WhatsAppMessage.whatsapp_lead_id == lead_id,
+            WhatsAppMessage.wati_message_id.isnot(None)
+        )
+        result = await self.db.execute(query)
+        return {row[0] for row in result.all()}
     
     # ============================================
     # CREATE OPERATIONS

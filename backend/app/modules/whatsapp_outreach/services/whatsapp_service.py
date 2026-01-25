@@ -399,6 +399,9 @@ class WhatsAppOutreachService:
         if not lead:
             return {"success": False, "error": "Lead not found"}
         
+        # Also sync full message history while we are at it
+        history_result = await self.sync_lead_messages(lead_id)
+        
         phone_number = lead["mobile_number"]
         
         # Get status from WATI
@@ -433,12 +436,125 @@ class WhatsAppOutreachService:
                     lead_mobile=phone_number
                 )
         
+        await self.db.commit()
+        
         return {
             "success": True,
             "lead_id": lead_id,
             "status": status,
-            "failed_detail": failed_detail
+            "failed_detail": failed_detail,
+            "messages_synced": history_result.get("count", 0)
         }
+
+    async def sync_lead_messages(self, lead_id: int) -> Dict[str, Any]:
+        """
+        Fetch full conversation history from WATI and save to local DB.
+        """
+        lead = await self.lead_repo.get_by_id(lead_id)
+        if not lead:
+            return {"success": False, "error": "Lead not found"}
+            
+        phone_number = lead["mobile_number"]
+        
+        # 1. Get existing message IDs to avoid duplicates
+        existing_ids = await self.message_repo.get_existing_wati_ids(lead_id)
+        
+        # 2. Get messages from WATI
+        wati_result = await wati_client.get_messages(phone_number)
+        if not wati_result.get("success"):
+            return wati_result
+            
+        messages = wati_result.get("messages", [])
+        new_messages_count = 0
+        
+        # 3. Process messages
+        for msg in messages:
+            wati_id = msg.get("id")
+            if wati_id in existing_ids:
+                # Update status of existing messages if changed
+                # (Optional: implement if needed)
+                continue
+                
+            # Create new message record
+            # owner=True means outbound, owner=False means inbound
+            direction = "outbound" if msg.get("owner") else "inbound"
+            
+            # Extract text
+            text_content = msg.get("text", "")
+            
+            # Skip empty messages (system events, reactions, or non-text for now)
+            if not text_content:
+                continue
+            
+            # Map status
+            status = msg.get("statusString", "SENT")
+            if direction == "inbound":
+                status = "RECEIVED"
+                
+            try:
+                if direction == "outbound":
+                    await self.message_repo.create_outbound_message(
+                        lead_id=lead_id,
+                        template_name=msg.get("templateName"),
+                        message_text=text_content,
+                        wati_message_id=wati_id,
+                        wati_conversation_id=msg.get("conversationId"),
+                        status=status
+                    )
+                else:
+                    await self.message_repo.create_inbound_message(
+                        lead_id=lead_id,
+                        message_text=text_content,
+                        wati_message_id=wati_id,
+                        wati_conversation_id=msg.get("conversationId")
+                    )
+                new_messages_count += 1
+            except Exception as e:
+                logger.error(f"Error saving message {wati_id}: {str(e)}")
+                
+        # Update lead status to REPLIED if there's an inbound message
+        if any(not msg.get("owner") for msg in messages):
+            await self.lead_repo.update_delivery_status(lead_id, "REPLIED")
+            
+        return {"success": True, "count": new_messages_count}
+
+    async def sync_all_wati_data(self) -> Dict[str, Any]:
+        """
+        Perform a deep sync of all active leads and templates.
+        """
+        results = {
+            "leads_processed": 0,
+            "messages_synced": 0,
+            "templates_refreshed": 0,
+            "success": True
+        }
+        
+        try:
+            # 1. Refresh templates (via wati_client directly in most cases, but we can log it)
+            templates = await wati_client.get_templates()
+            if templates.get("success"):
+                results["templates_refreshed"] = len(templates.get("templates", []))
+            
+            # 2. Fetch leads needing sync
+            leads = await self.lead_repo.get_leads_needing_sync(limit=50)
+            
+            # 3. Process each lead
+            for lead in leads:
+                lead_id = lead["id"]
+                sync_result = await self.sync_message_status(lead_id)
+                if sync_result.get("success"):
+                    results["leads_processed"] += 1
+                    results["messages_synced"] += sync_result.get("messages_synced", 0)
+            
+            # Final commit
+            await self.db.commit()
+            
+        except Exception as e:
+            logger.error(f"Global sync failed: {str(e)}")
+            results["success"] = False
+            results["error"] = str(e)
+            
+        return results
     
     # ============================================
     # LEAD IMPORT OPERATIONS
@@ -615,8 +731,11 @@ class WhatsAppOutreachService:
             "templateMessageFailed": self._handle_message_failed,
             "templateMessageFAILED_v2": self._handle_message_failed,
             
-            # Inbound
+            # Inbound messages (any message from lead)
             "message": self._handle_inbound_message,
+            
+            # Replied (lead directly replied to our specific message)
+            "sentMessageREPLIED_v2": self._handle_message_replied,
         }
         
         handler = event_handlers.get(event_type)
@@ -708,3 +827,38 @@ class WhatsAppOutreachService:
         )
         
         logger.info(f"💬 Reply received from {lead_name}: {message_text[:50]}...")
+    
+    async def _handle_message_replied(self, lead: dict, event_data: dict) -> None:
+        """
+        Handle sentMessageREPLIED_v2 event - lead directly replied to our message.
+        
+        This is different from 'message' because it includes context about
+        which specific message the lead is responding to.
+        """
+        lead_id = lead["id"]
+        lead_name = lead.get("first_name", "")
+        phone_number = lead["mobile_number"]
+        message_text = event_data.get("text", "")
+        original_msg_id = event_data.get("localMessageId", "")
+        
+        # Update lead status to REPLIED (highest engagement!)
+        await self.lead_repo.update_delivery_status(lead_id, "REPLIED")
+        
+        # Create inbound message record
+        await self.message_repo.create_inbound_message(
+            lead_id=lead_id,
+            message_text=message_text,
+            wati_message_id=event_data.get("whatsappMessageId"),
+            wati_conversation_id=event_data.get("conversationId")
+        )
+        
+        # Log reply activity with context
+        await self.activity_repo.log_reply_received(
+            lead_id=lead_id,
+            lead_name=lead_name,
+            lead_mobile=phone_number,
+            reply_text=message_text,
+            is_global=True
+        )
+        
+        logger.info(f"💬 Direct reply from {lead_name} to message {original_msg_id}: {message_text[:50]}...")

@@ -209,6 +209,27 @@ export const syncMessageStatus = async (leadId: number): Promise<{ success: bool
     return res.json();
 };
 
+/**
+ * Perform a deep sync: Refresh templates, delivery statuses, and fetch new messages.
+ */
+export const globalSyncWati = async (): Promise<{
+    success: boolean;
+    leads_processed: number;
+    messages_synced: number;
+    templates_refreshed: number;
+}> => {
+    const res = await fetch(`${WHATSAPP_API}/sync-all`, {
+        method: 'POST'
+    });
+
+    if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || 'Global sync failed');
+    }
+
+    return res.json();
+};
+
 // ============================================
 // BULK OPERATIONS
 // ============================================

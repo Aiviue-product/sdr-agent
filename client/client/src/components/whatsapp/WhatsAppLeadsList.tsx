@@ -18,6 +18,9 @@ interface WhatsAppLeadsListProps {
     selectedForBulk: Set<number>;
     onToggleBulk: (id: number) => void;
     onClearBulk: () => void;
+    onBulkSend: () => void;
+    isBulkSending: boolean;
+    hasTemplate: boolean;
 }
 
 export default function WhatsAppLeadsList({
@@ -33,7 +36,10 @@ export default function WhatsAppLeadsList({
     onSourceFilterChange,
     selectedForBulk,
     onToggleBulk,
-    onClearBulk
+    onClearBulk,
+    onBulkSend,
+    isBulkSending,
+    hasTemplate
 }: WhatsAppLeadsListProps) {
     const totalPages = Math.ceil(totalCount / pageLimit);
 
@@ -49,6 +55,8 @@ export default function WhatsAppLeadsList({
                 return <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">Delivered</span>;
             case 'READ':
                 return <span className="px-2 py-0.5 bg-green-200 text-green-800 text-xs rounded-full">Read ✓</span>;
+            case 'REPLIED':
+                return <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-semibold">💬 Replied</span>;
             case 'FAILED':
                 return <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">Failed</span>;
             default:
@@ -70,21 +78,43 @@ export default function WhatsAppLeadsList({
     };
 
     return (
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        <div className="w-80 bg-stone-200 border-r border-gray-200 flex flex-col">
             {/* Header */}
             <div className="p-4 border-b border-gray-200">
                 <div className="flex items-center justify-between mb-3">
                     <h2 className="font-semibold text-gray-800">
                         Leads ({totalCount})
                     </h2>
-                    {selectedForBulk.size > 0 && (
-                        <button
-                            onClick={onClearBulk}
-                            className="text-xs text-stone-500 hover:text-stone-700 font-medium"
-                        >
-                            Clear ({selectedForBulk.size})
-                        </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {/* Bulk Send Button - appears when items selected */}
+                        {selectedForBulk.size > 0 && (
+                            <button
+                                onClick={onBulkSend}
+                                disabled={isBulkSending || !hasTemplate}
+                                className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs font-bold transition-colors disabled:opacity-50"
+                                title={!hasTemplate ? 'Select a template first' : `Send to ${selectedForBulk.size} leads`}
+                            >
+                                {isBulkSending ? (
+                                    <span className="animate-spin">⏳</span>
+                                ) : (
+                                    <>
+                                        <span>📤</span>
+                                        <span>Send ({selectedForBulk.size})</span>
+                                    </>
+                                )}
+                            </button>
+                        )}
+                        {/* Clear selection */}
+                        {selectedForBulk.size > 0 && (
+                            <button
+                                onClick={onClearBulk}
+                                className="text-xs text-stone-400 hover:text-stone-600 font-medium"
+                                title="Clear selection"
+                            >
+                                ✕
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Source Filter */}
@@ -146,7 +176,7 @@ export default function WhatsAppLeadsList({
                                     </div>
 
                                     {lead.company_name && (
-                                        <div className="text-sm text-stone-500/80 truncate">
+                                        <div className="text-sm text-stone-500 truncate">
                                             🏢 {lead.company_name}
                                         </div>
                                     )}
