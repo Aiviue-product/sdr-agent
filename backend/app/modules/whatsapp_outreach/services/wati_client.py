@@ -394,65 +394,73 @@ class WATIClient:
     # ============================================
     # WEBHOOK OPERATIONS
     # ============================================
-    
-    async def create_webhook(
-        self,
-        webhook_url: str,
-        event_types: List[str]
-    ) -> Dict[str, Any]:
-        """
-        Register a webhook endpoint with WATI.
+    # In your Frontend, add a small "Refresh Webhook" button in your Settings page that only Admins can see.
+    # When you click that button, it calls the endpoint, uses the utilised logic in your client, and you're set.
+    # When you deploy, manually add the webhook URL inside the WATI Dashboard one last time. Then, you can delete the 
+    # update_wati_webhook.py
+    # script and the 
+    # create_webhook
+    # function from your client file to keep your codebase lean and clean.
+# TODO: sagar make it uncommented and use it later
+
+    # async def create_webhook(
+    #     self,
+    #     webhook_url: str,
+    #     event_types: List[str]
+    # ) -> Dict[str, Any]:
+    #     """
+    #     Register a webhook endpoint with WATI.
         
-        Args:
-            webhook_url: Your backend webhook URL
-            event_types: List of event types to subscribe to
-                - "message" (all message events)
-                - "templateMessageSent"
-                - "messageDelivered"
-                - "messageRead"
-                - "templateMessageFailed"
-                - "newContactMessageReceived"
+    #     Args:
+    #         webhook_url: Your backend webhook URL
+    #         event_types: List of event types to subscribe to
+    #             - "message" (all message events)
+    #             - "templateMessageSent"
+    #             - "messageDelivered"
+    #             - "messageRead"
+    #             - "templateMessageFailed"
+    #             - "newContactMessageReceived"
                 
-        Returns:
-            Dict with success and webhook info
-        """
-        try:
-            payload = [{
-                "phoneNumber": self.channel_number,
-                "status": 1,  # 1 = Enabled
-                "url": webhook_url,
-                "eventTypes": event_types
-            }]
+    #     Returns:
+    #         Dict with success and webhook info
+    #     """
+    #     try:
+    #         payload = [{
+    #             "phoneNumber": self.channel_number,
+    #             "status": 1,  # 1 = Enabled
+    #             "url": webhook_url,
+    #             "eventTypes": event_types
+    #         }]
             
-            async with httpx.AsyncClient(timeout=TIMEOUT_WATI_API) as client:
-                response = await client.post(
-                    f"{self.api_endpoint}/api/v2/webhookEndpoints",
-                    headers=self._get_headers(),
-                    json=payload
-                )
+    #         async with httpx.AsyncClient(timeout=TIMEOUT_WATI_API) as client:
+    #             response = await client.post(
+    #                 f"{self.api_endpoint}/api/v2/webhookEndpoints",
+    #                 headers=self._get_headers(),
+    #                 json=payload
+    #             )
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("ok"):
-                        logger.info(f"✅ Webhook registered: {webhook_url}")
-                        return {
-                            "success": True,
-                            "webhooks": data.get("result", [])
-                        }
-                    else:
-                        return {
-                            "success": False,
-                            "error": "Webhook registration failed"
-                        }
-                else:
-                    return {
-                        "success": False,
-                        "error": f"API error: {response.status_code}"
-                    }
+    #             if response.status_code == 200:
+    #                 data = response.json()
+    #                 if data.get("ok"):
+    #                     logger.info(f"✅ Webhook registered: {webhook_url}")
+    #                     return {
+    #                         "success": True,
+    #                         "webhooks": data.get("result", [])
+    #                     }
+    #                 else:
+    #                     return {
+    #                         "success": False,
+    #                         "error": "Webhook registration failed"
+    #                     }
+    #             else:
+    #                 return {
+    #                     "success": False,
+    #                     "error": f"API error: {response.status_code}"
+    #                 }
                     
-        except Exception as e:
-            logger.error(f"❌ Error creating webhook: {str(e)}")
-            return {"success": False, "error": str(e)}
+    #     except Exception as e:
+    #         logger.error(f"❌ Error creating webhook: {str(e)}")
+    #         return {"success": False, "error": str(e)}
 
 
 # Singleton instance
