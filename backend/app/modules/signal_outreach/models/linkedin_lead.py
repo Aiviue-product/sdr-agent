@@ -38,6 +38,7 @@ class LinkedInLead(Base):
     linkedin_url = Column(Text, unique=True, nullable=False)  # Profile URL (dedup key)
     headline = Column(Text, nullable=True)            # Author headline from LinkedIn
     profile_image_url = Column(Text, nullable=True)   # Author image URL
+    mobile_number = Column(Text, nullable=True)       # Enriched phone number for WhatsApp
     
     # ============================================
     # SEARCH CONTEXT

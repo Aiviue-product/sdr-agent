@@ -643,40 +643,86 @@ class WhatsAppOutreachService:
         """
         Import leads from LinkedIn outreach module.
         
-        Note: LinkedIn leads typically don't have mobile numbers by default.
-        This method checks for the column safety and returns 0 if not present.
+        Only imports leads that have a mobile number (enriched).
+        Uses upsert to avoid duplicates.
         """
         from app.modules.signal_outreach.models.linkedin_lead import LinkedInLead
-        from sqlalchemy import select, inspect
+        from sqlalchemy import select
         
-        # Initialize default response
-        response = {
+        # Query LinkedIn leads with mobile numbers
+        query = select(
+            LinkedInLead.id,
+            LinkedInLead.first_name,
+            LinkedInLead.last_name,
+            LinkedInLead.full_name,
+            LinkedInLead.mobile_number,
+            LinkedInLead.company_name,
+            LinkedInLead.headline,
+            LinkedInLead.linkedin_url
+        ).where(
+            LinkedInLead.mobile_number.isnot(None),
+            LinkedInLead.mobile_number != ""
+        )
+        
+        result = await db_linkedin.execute(query)
+        linkedin_leads = result.all()
+        
+        # Prepare for bulk upsert
+        leads_to_import = []
+        for lead in linkedin_leads:
+            # Handle names carefully
+            fname = lead.first_name
+            lname = lead.last_name
+            
+            # If names are missing but full_name exists, split it
+            if not fname and lead.full_name:
+                parts = lead.full_name.split(' ', 1)
+                fname = parts[0]
+                lname = parts[1] if len(parts) > 1 else ""
+
+            leads_to_import.append({
+                "mobile_number": lead.mobile_number,
+                "first_name": fname or "LinkedIn",
+                "last_name": lname or "User",
+                "email": None, # LinkedIn leads often don't have email in this table
+                "company_name": lead.company_name,
+                "designation": lead.headline,
+                "linkedin_url": lead.linkedin_url,
+                "source": "linkedin_import",
+                "source_lead_id": lead.id
+            })
+        
+        if not leads_to_import:
+            return {
+                "success": True,
+                "source": "linkedin_outreach",
+                "message": "No LinkedIn leads with mobile numbers found",
+                "total_with_mobile": 0,
+                "inserted": 0,
+                "updated": 0,
+                "skipped": 0
+            }
+        
+        # Bulk upsert
+        upsert_result = await self.lead_repo.bulk_upsert_leads(leads_to_import)
+        
+        # Log activity
+        total_imported = upsert_result["inserted_count"] + upsert_result["updated_count"]
+        if total_imported > 0:
+            await self.activity_repo.log_leads_imported(
+                count=total_imported,
+                source="linkedin_outreach"
+            )
+        
+        return {
             "success": True,
             "source": "linkedin_outreach",
-            "total_with_mobile": 0,
-            "inserted": 0,
-            "updated": 0,
-            "skipped": 0,
-            "errors": []
+            "total_with_mobile": len(leads_to_import),
+            "inserted": upsert_result["inserted_count"],
+            "updated": upsert_result["updated_count"],
+            "skipped": upsert_result["skipped_count"],
+            "errors": upsert_result.get("errors", [])[:10]
         }
-
-        try:
-            # Check if mobile_number column exists in the model
-            # (In a real scenario, we'd check the DB, but here we can check the ORM class)
-            if not hasattr(LinkedInLead, 'mobile_number'):
-                logger.info("ℹ️ LinkedInLead model does not have 'mobile_number' column yet.")
-                return response
-
-            # If it exists, we would perform the query here
-            # stmt = select(LinkedInLead).where(LinkedInLead.mobile_number != None)
-            # ... rest of the logic ...
-            
-        except Exception as e:
-            logger.error(f"❌ Error during LinkedIn import: {str(e)}")
-            response["success"] = False
-            response["errors"] = [str(e)]
-            
-        return response
     
     # ============================================
     # WEBHOOK HANDLING (Dictionary Dispatch Pattern)
