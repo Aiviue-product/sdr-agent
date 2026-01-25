@@ -3,8 +3,9 @@ WhatsApp Outreach - Pydantic Schemas
 Request and Response models for API endpoints.
 """
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
+import re
 
 
 # ============================================
@@ -84,12 +85,42 @@ class CreateLeadRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "mobile_number": "9876543210",
+                "mobile_number": "919876543210",
                 "first_name": "John",
                 "last_name": "Doe",
                 "company_name": "Acme Corp"
             }
         }
+
+    @field_validator("mobile_number")
+    @classmethod
+    def validate_mobile(cls, v: str) -> str:
+        # Strip common formatting
+        cleaned = re.sub(r"[\s\+\-\(\)]", "", v)
+        if not cleaned.isdigit():
+            raise ValueError("Mobile number must contain only digits")
+        if not (7 <= len(cleaned) <= 15):
+            raise ValueError("Mobile number must be between 7 and 15 digits")
+        return cleaned
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.match(email_regex, v):
+            raise ValueError("Invalid email format")
+        return v.lower().strip()
+
+    @field_validator("linkedin_url")
+    @classmethod
+    def validate_linkedin(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        if "linkedin.com" not in v.lower():
+            raise ValueError("Invalid LinkedIn URL")
+        return v.strip()
 
 
 class UpdateLeadRequest(BaseModel):
@@ -101,6 +132,25 @@ class UpdateLeadRequest(BaseModel):
     designation: Optional[str] = None
     linkedin_url: Optional[str] = None
     sector: Optional[str] = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.match(email_regex, v):
+            raise ValueError("Invalid email format")
+        return v.lower().strip()
+
+    @field_validator("linkedin_url")
+    @classmethod
+    def validate_linkedin(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return v
+        if "linkedin.com" not in v.lower():
+            raise ValueError("Invalid LinkedIn URL")
+        return v.strip()
 
 
 # ============================================
