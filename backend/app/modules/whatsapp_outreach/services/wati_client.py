@@ -15,6 +15,11 @@ Retry Strategy:
 - Max 3 attempts with exponential backoff (2s, 4s, 8s)
 - Only retries on: Timeout, Connection errors, 5xx server errors
 - Does NOT retry on: 4xx client errors (bad request, unauthorized, etc.)
+
+Connection Pooling:
+- Uses shared HTTP client for connection reuse
+- Significantly faster for bulk operations
+- Proper cleanup on application shutdown
 """
 import logging
 import httpx
@@ -31,10 +36,11 @@ from tenacity import (
 
 from app.shared.core.config import settings
 from app.modules.whatsapp_outreach.services.wati_cache import wati_cache
+from app.shared.utils.http_client import http_client_manager
 
 logger = logging.getLogger("wati_client")
 
-# Timeout settings
+# Timeout settings (used for specific request overrides)
 TIMEOUT_WATI_API = 30.0
 TIMEOUT_WATI_MESSAGE = 45.0
 
@@ -171,47 +177,48 @@ class WATIClient:
                     "from_cache": True
                 }
         
-        # Fetch from WATI API
+        # Fetch from WATI API (using shared client with connection pooling)
         try:
-            async with httpx.AsyncClient(timeout=TIMEOUT_WATI_API) as client:
-                response = await client.get(
-                    f"{self.api_endpoint}/api/v1/getMessageTemplates",
-                    headers=self._get_headers(),
-                    params={
-                        "pageSize": page_size,
-                        "pageNumber": page_number
-                    }
-                )
+            client = http_client_manager.get_client()
+            response = await client.get(
+                f"{self.api_endpoint}/api/v1/getMessageTemplates",
+                headers=self._get_headers(),
+                params={
+                    "pageSize": page_size,
+                    "pageNumber": page_number
+                },
+                timeout=TIMEOUT_WATI_API
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                templates = data.get("messageTemplates", [])
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    templates = data.get("messageTemplates", [])
-                    
-                    # Filter to only APPROVED templates
-                    approved_templates = [
-                        t for t in templates 
-                        if t.get("status") == "APPROVED"
-                    ]
-                    
-                    # Update cache
-                    wati_cache.set_templates(approved_templates)
-                    logger.info(f"Templates fetched from WATI and cached: {len(approved_templates)} templates")
-                    
-                    return {
-                        "success": True,
-                        "templates": approved_templates,
-                        "total": data.get("link", {}).get("total", len(approved_templates)),
-                        "page": page_number,
-                        "page_size": page_size,
-                        "from_cache": False
-                    }
-                else:
-                    logger.error(f"Get templates failed: {response.status_code} - {response.text}")
-                    return {
-                        "success": False,
-                        "error": f"Failed to get templates: {response.status_code}",
-                        "details": response.text
-                    }
+                # Filter to only APPROVED templates
+                approved_templates = [
+                    t for t in templates 
+                    if t.get("status") == "APPROVED"
+                ]
+                
+                # Update cache
+                wati_cache.set_templates(approved_templates)
+                logger.info(f"Templates fetched from WATI and cached: {len(approved_templates)} templates")
+                
+                return {
+                    "success": True,
+                    "templates": approved_templates,
+                    "total": data.get("link", {}).get("total", len(approved_templates)),
+                    "page": page_number,
+                    "page_size": page_size,
+                    "from_cache": False
+                }
+            else:
+                logger.error(f"Get templates failed: {response.status_code} - {response.text}")
+                return {
+                    "success": False,
+                    "error": f"Failed to get templates: {response.status_code}",
+                    "details": response.text
+                }
                     
         except httpx.TimeoutException:
             logger.error("Timeout getting templates from WATI")
@@ -357,48 +364,50 @@ class WATIClient:
         if broadcast_name:
             payload["broadcast_name"] = broadcast_name
         
-        async with httpx.AsyncClient(timeout=TIMEOUT_WATI_MESSAGE) as client:
-            response = await client.post(
-                f"{self.api_endpoint}/api/v1/sendTemplateMessage",
-                headers=self._get_headers(),
-                params={"whatsappNumber": phone_number},
-                json=payload
-            )
+        # Use shared client with connection pooling
+        client = http_client_manager.get_client()
+        response = await client.post(
+            f"{self.api_endpoint}/api/v1/sendTemplateMessage",
+            headers=self._get_headers(),
+            params={"whatsappNumber": phone_number},
+            json=payload,
+            timeout=TIMEOUT_WATI_MESSAGE
+        )
+        
+        # Handle response based on status code
+        if response.status_code == 200:
+            data = response.json()
             
-            # Handle response based on status code
-            if response.status_code == 200:
-                data = response.json()
-                
-                if data.get("result") is True:
-                    logger.info(f"Template message sent to {phone_number}")
-                    return {
-                        "success": True,
-                        "phone_number": phone_number,
-                        "template_name": template_name,
-                        "valid_whatsapp": data.get("validWhatsAppNumber", True),
-                        "contact_id": data.get("contact", {}).get("id"),
-                        "message_ids": data.get("model", {}).get("ids", [])
-                    }
-                else:
-                    # WATI returned result=false - this is a client error, don't retry
-                    error_msg = data.get("info", "Unknown error")
-                    logger.error(f"Send failed (non-retryable): {error_msg}")
-                    raise WATINonRetryableError(error_msg)
-            
-            elif 400 <= response.status_code < 500:
-                # 4xx Client errors - don't retry
-                logger.error(f"Client error {response.status_code}: {response.text}")
-                raise WATINonRetryableError(f"Client error: {response.status_code}")
-            
-            elif response.status_code >= 500:
-                # 5xx Server errors - retry
-                logger.warning(f"Server error {response.status_code}, will retry...")
-                raise WATIRetryableError(f"Server error: {response.status_code}")
-            
+            if data.get("result") is True:
+                logger.info(f"Template message sent to {phone_number}")
+                return {
+                    "success": True,
+                    "phone_number": phone_number,
+                    "template_name": template_name,
+                    "valid_whatsapp": data.get("validWhatsAppNumber", True),
+                    "contact_id": data.get("contact", {}).get("id"),
+                    "message_ids": data.get("model", {}).get("ids", [])
+                }
             else:
-                # Unexpected status code
-                logger.error(f"Unexpected status {response.status_code}: {response.text}")
-                raise WATINonRetryableError(f"Unexpected error: {response.status_code}")
+                # WATI returned result=false - this is a client error, don't retry
+                error_msg = data.get("info", "Unknown error")
+                logger.error(f"Send failed (non-retryable): {error_msg}")
+                raise WATINonRetryableError(error_msg)
+        
+        elif 400 <= response.status_code < 500:
+            # 4xx Client errors - don't retry
+            logger.error(f"Client error {response.status_code}: {response.text}")
+            raise WATINonRetryableError(f"Client error: {response.status_code}")
+        
+        elif response.status_code >= 500:
+            # 5xx Server errors - retry
+            logger.warning(f"Server error {response.status_code}, will retry...")
+            raise WATIRetryableError(f"Server error: {response.status_code}")
+        
+        else:
+            # Unexpected status code
+            logger.error(f"Unexpected status {response.status_code}: {response.text}")
+            raise WATINonRetryableError(f"Unexpected error: {response.status_code}")
     
     async def get_messages(
         self, 
@@ -432,34 +441,36 @@ class WATIClient:
         page_number: int
     ) -> Dict[str, Any]:
         """Internal method with retry decorator."""
-        async with httpx.AsyncClient(timeout=TIMEOUT_WATI_API) as client:
-            response = await client.get(
-                f"{self.api_endpoint}/api/v1/getMessages/{phone_number}",
-                headers=self._get_headers(),
-                params={
-                    "pageSize": page_size,
-                    "pageNumber": page_number
-                }
-            )
+        # Use shared client with connection pooling
+        client = http_client_manager.get_client()
+        response = await client.get(
+            f"{self.api_endpoint}/api/v1/getMessages/{phone_number}",
+            headers=self._get_headers(),
+            params={
+                "pageSize": page_size,
+                "pageNumber": page_number
+            },
+            timeout=TIMEOUT_WATI_API
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            messages = data.get("messages", {}).get("items", [])
             
-            if response.status_code == 200:
-                data = response.json()
-                messages = data.get("messages", {}).get("items", [])
-                
-                return {
-                    "success": True,
-                    "messages": messages,
-                    "total": data.get("messages", {}).get("total", len(messages))
-                }
-            elif response.status_code >= 500:
-                # Server error - retry
-                raise WATIRetryableError(f"Server error: {response.status_code}")
-            else:
-                # Client error - don't retry
-                return {
-                    "success": False,
-                    "error": f"Failed to get messages: {response.status_code}"
-                }
+            return {
+                "success": True,
+                "messages": messages,
+                "total": data.get("messages", {}).get("total", len(messages))
+            }
+        elif response.status_code >= 500:
+            # Server error - retry
+            raise WATIRetryableError(f"Server error: {response.status_code}")
+        else:
+            # Client error - don't retry
+            return {
+                "success": False,
+                "error": f"Failed to get messages: {response.status_code}"
+            }
     
     async def get_message_status(self, phone_number: str) -> Dict[str, Any]:
         """
@@ -517,32 +528,34 @@ class WATIClient:
             if custom_params:
                 payload["customParams"] = custom_params
             
-            async with httpx.AsyncClient(timeout=TIMEOUT_WATI_API) as client:
-                response = await client.post(
-                    f"{self.api_endpoint}/api/v1/addContact/{phone_number}",
-                    headers=self._get_headers(),
-                    json=payload
-                )
+            # Use shared client with connection pooling
+            client = http_client_manager.get_client()
+            response = await client.post(
+                f"{self.api_endpoint}/api/v1/addContact/{phone_number}",
+                headers=self._get_headers(),
+                json=payload,
+                timeout=TIMEOUT_WATI_API
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    if data.get("result") is True:
-                        return {
-                            "success": True,
-                            "contact_id": data.get("contact", {}).get("id"),
-                            "phone_number": phone_number
-                        }
-                    else:
-                        return {
-                            "success": False,
-                            "error": data.get("info", "Failed to add contact")
-                        }
+                if data.get("result") is True:
+                    return {
+                        "success": True,
+                        "contact_id": data.get("contact", {}).get("id"),
+                        "phone_number": phone_number
+                    }
                 else:
                     return {
                         "success": False,
-                        "error": f"API error: {response.status_code}"
+                        "error": data.get("info", "Failed to add contact")
                     }
+            else:
+                return {
+                    "success": False,
+                    "error": f"API error: {response.status_code}"
+                }
                     
         except Exception as e:
             logger.error(f"❌ Error adding contact: {str(e)}")
@@ -560,28 +573,30 @@ class WATIClient:
             Dict with success and contacts list
         """
         try:
-            async with httpx.AsyncClient(timeout=TIMEOUT_WATI_API) as client:
-                response = await client.get(
-                    f"{self.api_endpoint}/api/v1/getContacts",
-                    headers=self._get_headers(),
-                    params={
-                        "pageSize": page_size,
-                        "pageNumber": page_number
-                    }
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    return {
-                        "success": True,
-                        "contacts": data.get("contact_list", []),
-                        "total": data.get("link", {}).get("total", 0)
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "error": f"Failed to get contacts: {response.status_code}"
-                    }
+            # Use shared client with connection pooling
+            client = http_client_manager.get_client()
+            response = await client.get(
+                f"{self.api_endpoint}/api/v1/getContacts",
+                headers=self._get_headers(),
+                params={
+                    "pageSize": page_size,
+                    "pageNumber": page_number
+                },
+                timeout=TIMEOUT_WATI_API
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    "success": True,
+                    "contacts": data.get("contact_list", []),
+                    "total": data.get("link", {}).get("total", 0)
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Failed to get contacts: {response.status_code}"
+                }
                     
         except Exception as e:
             logger.error(f"❌ Error getting contacts: {str(e)}")

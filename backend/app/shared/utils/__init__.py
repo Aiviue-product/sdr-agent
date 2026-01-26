@@ -19,6 +19,11 @@ from app.shared.utils.phone_utils import (
     get_phone_info,
     PhoneValidationResult
 )
+from app.shared.utils.http_client import (
+    http_client_manager,
+    startup_http_client,
+    shutdown_http_client
+)
 
 __all__ = [
     "safe_json_parse", 
@@ -37,5 +42,9 @@ __all__ = [
     "is_valid_phone",
     "is_mobile_number",
     "get_phone_info",
-    "PhoneValidationResult"
+    "PhoneValidationResult",
+    # HTTP client utilities
+    "http_client_manager",
+    "startup_http_client",
+    "shutdown_http_client"
 ]
