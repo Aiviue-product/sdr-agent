@@ -11,6 +11,14 @@ from app.shared.utils.cache import (
     get_rate_limits_cache_key
 )
 from app.shared.utils.exceptions import ConcurrentModificationError, EntityNotFoundError
+from app.shared.utils.phone_utils import (
+    validate_phone,
+    normalize_phone_number,
+    is_valid_phone,
+    is_mobile_number,
+    get_phone_info,
+    PhoneValidationResult
+)
 
 __all__ = [
     "safe_json_parse", 
@@ -22,5 +30,12 @@ __all__ = [
     "CACHE_TTL_RATE_LIMITS",
     "get_rate_limits_cache_key",
     "ConcurrentModificationError",
-    "EntityNotFoundError"
+    "EntityNotFoundError",
+    # Phone utilities
+    "validate_phone",
+    "normalize_phone_number",
+    "is_valid_phone",
+    "is_mobile_number",
+    "get_phone_info",
+    "PhoneValidationResult"
 ]

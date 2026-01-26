@@ -4,11 +4,11 @@ Database operations for the whatsapp_leads table.
 
 Key patterns:
 - Upsert with COALESCE to preserve existing data
-- Phone number normalization to E.164 format
+- Phone number normalization to E.164 format (using libphonenumber)
 - Batch operations with chunking
 """
-import re
-from typing import Optional, List, Dict
+import logging
+from typing import Optional, List, Dict, Tuple
 from sqlalchemy import text, select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert
@@ -16,10 +16,21 @@ from sqlalchemy.dialects.postgresql import insert
 from app.modules.whatsapp_outreach.models.whatsapp_lead import WhatsAppLead
 from app.shared.core.config import settings
 from app.shared.core.constants import DEFAULT_PAGE_SIZE
+from app.shared.utils.phone_utils import (
+    validate_phone,
+    normalize_phone_number,
+    is_valid_phone,
+    PhoneValidationResult
+)
+
+logger = logging.getLogger(__name__)
 
 
 class WhatsAppLeadRepository:
     """Repository for WhatsApp lead CRUD operations."""
+    
+    # Default country for phone validation (ISO 3166-1 alpha-2)
+    DEFAULT_COUNTRY = "IN"
     
     def __init__(self, db_session: AsyncSession):
         self.db = db_session
@@ -28,32 +39,94 @@ class WhatsAppLeadRepository:
     # PHONE NUMBER UTILITIES
     # ============================================
     
-    @staticmethod
-    def normalize_phone(phone: str, default_country_code: str = None) -> str:
+    @classmethod
+    def get_default_country(cls) -> str:
+        """Get the default country code from settings or fallback to IN."""
+        # Map numeric country codes to ISO codes if needed
+        wati_code = settings.WATI_DEFAULT_COUNTRY_CODE or "91"
+        country_map = {
+            "91": "IN",
+            "1": "US",
+            "44": "GB",
+            "61": "AU",
+            "971": "AE",
+            "65": "SG",
+        }
+        return country_map.get(wati_code, cls.DEFAULT_COUNTRY)
+    
+    @classmethod
+    def normalize_phone(cls, phone: str, default_country_code: str = None) -> str:
         """
         Normalize phone number to E.164 format (country code + number).
+        Uses libphonenumber for proper international support.
+        
+        Args:
+            phone: Phone number in any format
+            default_country_code: Numeric country code (e.g., "91" for India)
+                                  Falls back to settings or "91"
+        
+        Returns:
+            Normalized phone number (e.g., "919876543210")
         
         Examples:
-            "9876543210" -> "919876543210" (with default 91)
+            "9876543210" -> "919876543210" (India default)
             "+91 9876543210" -> "919876543210"
-            "091-9876543210" -> "919876543210"
-            "919876543210" -> "919876543210" (unchanged)
+            "+1 (555) 123-4567" -> "15551234567"
+            "00447911123456" -> "447911123456"
         """
         if not phone:
             return ""
         
-        # Remove all non-digits
-        cleaned = re.sub(r'\D', '', phone)
+        # Determine default country (ISO code)
+        if default_country_code:
+            # Map numeric code to ISO
+            country_map = {"91": "IN", "1": "US", "44": "GB", "61": "AU", "971": "AE", "65": "SG"}
+            default_country = country_map.get(default_country_code, cls.DEFAULT_COUNTRY)
+        else:
+            default_country = cls.get_default_country()
         
-        # Remove leading zeros (country codes don't start with 0)
-        cleaned = cleaned.lstrip('0')
+        # Use the new phone validation utility (non-strict for backward compat)
+        return normalize_phone_number(phone, default_country, strict=False)
+    
+    @classmethod
+    def validate_phone_number(cls, phone: str, default_country: str = None) -> PhoneValidationResult:
+        """
+        Validate a phone number and get detailed information.
         
-        # If it's a 10-digit Indian number, add country code
-        if len(cleaned) == 10:
-            country_code = default_country_code or settings.WATI_DEFAULT_COUNTRY_CODE or "91"
-            cleaned = country_code + cleaned
+        Args:
+            phone: Phone number to validate
+            default_country: Default country ISO code (e.g., "IN", "US")
         
-        return cleaned
+        Returns:
+            PhoneValidationResult with validation status and details
+        """
+        country = default_country or cls.get_default_country()
+        return validate_phone(phone, country)
+    
+    @classmethod
+    def normalize_phone_strict(cls, phone: str, default_country: str = None) -> Tuple[str, Optional[str]]:
+        """
+        Strictly normalize a phone number, returning error if invalid.
+        
+        Args:
+            phone: Phone number to normalize
+            default_country: Default country ISO code
+            
+        Returns:
+            Tuple of (normalized_number, error_message)
+            - If valid: ("919876543210", None)
+            - If invalid: ("", "Invalid phone number: ...")
+        """
+        if not phone:
+            return "", "Phone number is empty"
+        
+        country = default_country or cls.get_default_country()
+        result = validate_phone(phone, country)
+        
+        if result.is_valid:
+            return result.normalized, None
+        else:
+            return "", result.error
     
     # ============================================
     # READ OPERATIONS

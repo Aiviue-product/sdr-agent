@@ -9,6 +9,7 @@ from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.whatsapp_outreach.models.whatsapp_message import WhatsAppMessage
+from app.modules.whatsapp_outreach.constants import DeliveryStatus
 from app.shared.core.constants import DEFAULT_PAGE_SIZE
 
 
@@ -110,7 +111,7 @@ class WhatsAppMessageRepository:
         broadcast_name: str = None,
         wati_message_id: str = None,
         wati_conversation_id: str = None,
-        status: str = "PENDING"
+        status: str = DeliveryStatus.PENDING
     ) -> dict:
         """
         Create a new outbound message record.
@@ -126,7 +127,7 @@ class WhatsAppMessageRepository:
             broadcast_name=broadcast_name,
             wati_message_id=wati_message_id,
             wati_conversation_id=wati_conversation_id,
-            sent_at=func.now() if status in ["SENT", "DELIVERED", "READ"] else None
+            sent_at=func.now() if status in [DeliveryStatus.SENT, DeliveryStatus.DELIVERED, DeliveryStatus.READ] else None
         )
         
         self.db.add(message)
@@ -180,11 +181,11 @@ class WhatsAppMessageRepository:
             update_values["failed_reason"] = failed_reason
         
         # Set timestamp based on status
-        if status == "SENT":
+        if status == DeliveryStatus.SENT:
             update_values["sent_at"] = func.now()
-        elif status == "DELIVERED":
+        elif status == DeliveryStatus.DELIVERED:
             update_values["delivered_at"] = func.now()
-        elif status == "READ":
+        elif status == DeliveryStatus.READ:
             update_values["read_at"] = func.now()
         
         stmt = (
@@ -212,11 +213,11 @@ class WhatsAppMessageRepository:
         if failed_reason:
             update_values["failed_reason"] = failed_reason
         
-        if status == "SENT":
+        if status == DeliveryStatus.SENT:
             update_values["sent_at"] = func.now()
-        elif status == "DELIVERED":
+        elif status == DeliveryStatus.DELIVERED:
             update_values["delivered_at"] = func.now()
-        elif status == "READ":
+        elif status == DeliveryStatus.READ:
             update_values["read_at"] = func.now()
         
         stmt = (

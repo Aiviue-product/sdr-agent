@@ -5,8 +5,11 @@
 import { API_BASE_URL } from "../../constants";
 import {
     BulkEligibilityResponse,
-    BulkSendWhatsAppRequest,
-    BulkSendWhatsAppResponse,
+    BulkSendWhatsAppRequest,  // Still used by checkBulkEligibility
+    BulkJobResponse,
+    BulkJobsListResponse,
+    BulkJobItemsResponse,
+    CreateBulkJobRequest,
     ConversationResponse,
     CreateLeadRequest,
     ImportResponse,
@@ -253,13 +256,18 @@ export const checkBulkEligibility = async (
     return res.json();
 };
 
+// ============================================
+// BULK JOB OPERATIONS (with job tracking)
+// ============================================
+
 /**
- * Bulk send WhatsApp messages.
+ * Create a new bulk send job.
+ * Can start immediately or be started later.
  */
-export const bulkSendWhatsApp = async (
-    request: BulkSendWhatsAppRequest
-): Promise<BulkSendWhatsAppResponse> => {
-    const res = await fetch(`${WHATSAPP_API}/bulk/send`, {
+export const createBulkJob = async (
+    request: CreateBulkJobRequest
+): Promise<BulkJobResponse> => {
+    const res = await fetch(`${WHATSAPP_API}/bulk/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request)
@@ -267,7 +275,114 @@ export const bulkSendWhatsApp = async (
 
     if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.detail || 'Bulk send failed');
+        throw new Error(error.detail || 'Failed to create bulk job');
+    }
+
+    return res.json();
+};
+
+/**
+ * Get all bulk jobs with optional status filter.
+ */
+export const getBulkJobs = async (
+    status?: string,
+    skip: number = 0,
+    limit: number = 20
+): Promise<BulkJobsListResponse> => {
+    let url = `${WHATSAPP_API}/bulk/jobs?skip=${skip}&limit=${limit}`;
+    if (status) {
+        url += `&status=${encodeURIComponent(status)}`;
+    }
+
+    const res = await fetch(url);
+
+    if (!res.ok) {
+        throw new Error('Failed to fetch bulk jobs');
+    }
+
+    return res.json();
+};
+
+/**
+ * Get a single bulk job by ID.
+ */
+export const getBulkJob = async (jobId: number): Promise<BulkJobResponse> => {
+    const res = await fetch(`${WHATSAPP_API}/bulk/jobs/${jobId}`);
+
+    if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || 'Failed to fetch bulk job');
+    }
+
+    return res.json();
+};
+
+/**
+ * Get items for a bulk job (individual lead statuses).
+ */
+export const getBulkJobItems = async (
+    jobId: number,
+    status?: string,
+    skip: number = 0,
+    limit: number = 50
+): Promise<BulkJobItemsResponse> => {
+    let url = `${WHATSAPP_API}/bulk/jobs/${jobId}/items?skip=${skip}&limit=${limit}`;
+    if (status) {
+        url += `&status=${encodeURIComponent(status)}`;
+    }
+
+    const res = await fetch(url);
+
+    if (!res.ok) {
+        throw new Error('Failed to fetch job items');
+    }
+
+    return res.json();
+};
+
+/**
+ * Start or resume a bulk job.
+ */
+export const startBulkJob = async (jobId: number): Promise<BulkJobResponse> => {
+    const res = await fetch(`${WHATSAPP_API}/bulk/jobs/${jobId}/start`, {
+        method: 'POST'
+    });
+
+    if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || 'Failed to start bulk job');
+    }
+
+    return res.json();
+};
+
+/**
+ * Pause a running bulk job.
+ */
+export const pauseBulkJob = async (jobId: number): Promise<BulkJobResponse> => {
+    const res = await fetch(`${WHATSAPP_API}/bulk/jobs/${jobId}/pause`, {
+        method: 'POST'
+    });
+
+    if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || 'Failed to pause bulk job');
+    }
+
+    return res.json();
+};
+
+/**
+ * Cancel a bulk job permanently.
+ */
+export const cancelBulkJob = async (jobId: number): Promise<BulkJobResponse> => {
+    const res = await fetch(`${WHATSAPP_API}/bulk/jobs/${jobId}/cancel`, {
+        method: 'POST'
+    });
+
+    if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || 'Failed to cancel bulk job');
     }
 
     return res.json();

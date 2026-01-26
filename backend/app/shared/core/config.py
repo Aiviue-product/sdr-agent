@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     WATI_API_ENDPOINT: str = "https://live-mt-server.wati.io/105961"
     WATI_CHANNEL_NUMBER: str = ""  # Your WhatsApp Business number (sender)
     WATI_DEFAULT_COUNTRY_CODE: str = "91"  # Default country code (India)
+    WATI_WEBHOOK_SECRET: str = ""  # Secret token for webhook verification (set in .env)
+    WATI_WEBHOOK_ALLOWED_IPS: str = ""  # Comma-separated IPs to whitelist (optional)
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -27,4 +29,4 @@ class Settings(BaseSettings):
         extra="ignore" 
     )
 
-settings = Settings()     
+settings = Settings()      
