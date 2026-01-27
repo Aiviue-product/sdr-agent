@@ -19,6 +19,8 @@ from app.modules.whatsapp_outreach.services.wati_client import wati_client
 from app.modules.whatsapp_outreach.repositories.whatsapp_lead_repository import WhatsAppLeadRepository
 from app.modules.whatsapp_outreach.repositories.whatsapp_message_repository import WhatsAppMessageRepository
 from app.modules.whatsapp_outreach.repositories.whatsapp_activity_repository import WhatsAppActivityRepository
+from app.modules.whatsapp_outreach.repositories.whatsapp_bulk_job_repository import WhatsAppBulkJobRepository
+from app.modules.whatsapp_outreach.constants import DeliveryStatus, BulkJobStatus, BulkJobItemStatus
 
 logger = logging.getLogger("whatsapp_service")
 
@@ -43,6 +45,7 @@ class WhatsAppOutreachService:
         self.lead_repo = WhatsAppLeadRepository(db)
         self.message_repo = WhatsAppMessageRepository(db)
         self.activity_repo = WhatsAppActivityRepository(db)
+        self.bulk_job_repo = WhatsAppBulkJobRepository(db)
     
     # ============================================
     # CONFIGURATION CHECK
@@ -56,13 +59,21 @@ class WhatsAppOutreachService:
     # TEMPLATE OPERATIONS
     # ============================================
     
-    async def get_available_templates(self) -> Dict[str, Any]:
+    async def get_available_templates(self, force_refresh: bool = False) -> Dict[str, Any]:
         """
         Get all approved templates from WATI.
         
-        Returns simplified template info for UI display.
+        Args:
+            force_refresh: If True, bypass cache and fetch from WATI
+        
+        Returns:
+            Simplified template info for UI display.
+        
+        Caching:
+            - Templates are cached for 5 minutes by default
+            - Use force_refresh=True to bypass cache
         """
-        result = await wati_client.get_templates()
+        result = await wati_client.get_templates(force_refresh=force_refresh)
         
         if not result.get("success"):
             return result
@@ -83,7 +94,8 @@ class WhatsAppOutreachService:
         return {
             "success": True,
             "templates": templates,
-            "total": len(templates)
+            "total": len(templates),
+            "from_cache": result.get("from_cache", False)
         }
     
     def render_template_message(
@@ -188,10 +200,10 @@ class WhatsAppOutreachService:
         
         # Determine initial status
         if send_result.get("success"):
-            status = "SENT"
+            status = DeliveryStatus.SENT
             failed_reason = None
         else:
-            status = "FAILED"
+            status = DeliveryStatus.FAILED
             failed_reason = send_result.get("error", "Unknown error")
         
         # TRANSACTION: Wrap all DB writes in single atomic operation
@@ -217,7 +229,7 @@ class WhatsAppOutreachService:
                 )
                 
                 # Log activity
-                if status == "SENT":
+                if status == DeliveryStatus.SENT:
                     await self.activity_repo.log_message_sent(
                         lead_id=lead_id,
                         lead_name=first_name,
@@ -312,14 +324,23 @@ class WhatsAppOutreachService:
             "total_requested": len(lead_ids)
         }
     
-    async def bulk_send_messages(
+    # ============================================
+    # BULK JOB OPERATIONS (with job tracking)
+    # ============================================
+    
+    async def create_bulk_job(
         self,
         lead_ids: List[int],
         template_name: str,
         broadcast_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Send WhatsApp messages to multiple leads with rate limiting.
+        Create a new bulk send job (does not start processing).
+        
+        This creates a job record that can be:
+        - Started immediately
+        - Started later
+        - Resumed if interrupted
         
         Args:
             lead_ids: List of lead IDs to message
@@ -327,63 +348,317 @@ class WhatsAppOutreachService:
             broadcast_name: Optional campaign identifier
             
         Returns:
-            Dict with success/failed counts and details
+            Dict with job_id and details
         """
+        if not lead_ids:
+            return {"success": False, "error": "No lead IDs provided"}
+        
+        # Validate all leads exist
+        existing_leads = await self.lead_repo.get_leads_by_ids(lead_ids)
+        existing_ids = {lead["id"] for lead in existing_leads}
+        missing_ids = [lid for lid in lead_ids if lid not in existing_ids]
+        
+        if missing_ids:
+            return {
+                "success": False,
+                "error": f"Lead IDs not found: {missing_ids[:10]}{'...' if len(missing_ids) > 10 else ''}",
+                "missing_count": len(missing_ids),
+                "missing_ids": missing_ids[:50]  # Limit to first 50
+            }
+        
         if not broadcast_name:
             broadcast_name = f"sdr_bulk_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
+        try:
+            job = await self.bulk_job_repo.create_job(
+                template_name=template_name,
+                lead_ids=lead_ids,
+                broadcast_name=broadcast_name
+            )
+            
+            await self.db.commit()
+            
+            logger.info(f"Bulk job created: id={job['id']}, leads={len(lead_ids)}")
+            
+            return {
+                "success": True,
+                "job": job,
+                "message": f"Bulk job created with {len(lead_ids)} leads"
+            }
+            
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Failed to create bulk job: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def process_bulk_job(
+        self,
+        job_id: int,
+        batch_size: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Process a bulk job (send messages).
+        
+        This method:
+        1. Marks job as RUNNING
+        2. Processes items in batches
+        3. Updates progress after each item
+        4. Handles interruption gracefully
+        
+        Can be called multiple times to resume a paused/failed job.
+        
+        Args:
+            job_id: ID of the job to process
+            batch_size: Number of items to process per batch
+            
+        Returns:
+            Dict with final status and counts
+        """
+        # Get job
+        job = await self.bulk_job_repo.get_job_by_id(job_id)
+        if not job:
+            return {"success": False, "error": "Job not found"}
+        
+        # Check if job can be processed
+        if job["status"] == BulkJobStatus.COMPLETED:
+            return {"success": True, "message": "Job already completed", "job": job}
+        
+        if job["status"] == BulkJobStatus.CANCELLED:
+            return {"success": False, "error": "Job was cancelled"}
+        
+        if job["status"] == BulkJobStatus.RUNNING:
+            return {"success": False, "error": "Job is already running"}
+        
+        # Reset any items stuck in 'processing' (from previous crash)
+        reset_count = await self.bulk_job_repo.reset_processing_items(job_id)
+        if reset_count > 0:
+            logger.info(f"Reset {reset_count} stuck items for job {job_id}")
+        
+        # Mark job as running
+        await self.bulk_job_repo.update_job_status(job_id, BulkJobStatus.RUNNING)
+        await self.db.commit()
+        
         # Log start activity
         await self.activity_repo.log_bulk_send_started(
-            lead_count=len(lead_ids),
-            template_name=template_name
+            lead_count=job["pending_count"],
+            template_name=job["template_name"]
         )
         
-        results = {
-            "success_count": 0,
-            "failed_count": 0,
-            "results": [],
-            "broadcast_name": broadcast_name
-        }
+        total_sent = 0
+        total_failed = 0
         
-        for i, lead_id in enumerate(lead_ids):
-            # Rate limiting delay (except for first message)
-            if i > 0:
-                await asyncio.sleep(BULK_SEND_DELAY_SECONDS)
+        try:
+            while True:
+                # Get next batch of pending items
+                items = await self.bulk_job_repo.get_pending_items(job_id, limit=batch_size)
+                
+                if not items:
+                    break  # No more items to process
+                
+                for item in items:
+                    # Check if job was paused/cancelled (check periodically)
+                    current_job = await self.bulk_job_repo.get_job_by_id(job_id)
+                    if current_job["status"] in [BulkJobStatus.PAUSED, BulkJobStatus.CANCELLED]:
+                        logger.info(f"Job {job_id} was {current_job['status']}, stopping")
+                        await self.bulk_job_repo.update_job_counts(job_id)
+                        await self.db.commit()
+                        return {
+                            "success": True,
+                            "message": f"Job {current_job['status']}",
+                            "job": await self.bulk_job_repo.get_job_by_id(job_id)
+                        }
+                    
+                    # Mark item as processing
+                    await self.bulk_job_repo.mark_item_processing(item["id"])
+                    await self.db.commit()
+                    
+                    # Rate limiting delay (except for first message)
+                    if total_sent + total_failed > 0:
+                        await asyncio.sleep(BULK_SEND_DELAY_SECONDS)
+                    
+                    # Send message
+                    try:
+                        result = await self.send_message_to_lead(
+                            lead_id=item["lead_id"],
+                            template_name=job["template_name"],
+                            broadcast_name=job["broadcast_name"]
+                        )
+                        
+                        if result.get("success"):
+                            # Convert message_id to string (DB expects VARCHAR)
+                            msg_id = result.get("message_id")
+                            await self.bulk_job_repo.update_item_status(
+                                item_id=item["id"],
+                                status=BulkJobItemStatus.SENT,
+                                wati_message_id=str(msg_id) if msg_id is not None else None
+                            )
+                            total_sent += 1
+                        else:
+                            await self.bulk_job_repo.update_item_status(
+                                item_id=item["id"],
+                                status=BulkJobItemStatus.FAILED,
+                                error_message=result.get("error")
+                            )
+                            total_failed += 1
+                            
+                    except Exception as e:
+                        await self.bulk_job_repo.update_item_status(
+                            item_id=item["id"],
+                            status=BulkJobItemStatus.FAILED,
+                            error_message=str(e)
+                        )
+                        total_failed += 1
+                    
+                    # Commit after each item
+                    await self.db.commit()
+                
+                # Update counts after batch
+                await self.bulk_job_repo.update_job_counts(job_id)
+                await self.db.commit()
             
-            try:
-                result = await self.send_message_to_lead(
-                    lead_id=lead_id,
-                    template_name=template_name,
-                    broadcast_name=broadcast_name
-                )
-                
-                if result.get("success"):
-                    results["success_count"] += 1
-                else:
-                    results["failed_count"] += 1
-                
-                results["results"].append({
-                    "lead_id": lead_id,
-                    "success": result.get("success"),
-                    "error": result.get("error")
-                })
-                
-            except Exception as e:
-                results["failed_count"] += 1
-                results["results"].append({
-                    "lead_id": lead_id,
-                    "success": False,
-                    "error": str(e)
-                })
+            # All items processed - mark job as completed
+            await self.bulk_job_repo.update_job_status(job_id, BulkJobStatus.COMPLETED)
+            await self.bulk_job_repo.update_job_counts(job_id)
+            await self.db.commit()
+            
+            # Log completion
+            await self.activity_repo.log_bulk_send_completed(
+                success_count=total_sent,
+                failed_count=total_failed
+            )
+            await self.db.commit()
+            
+            final_job = await self.bulk_job_repo.get_job_by_id(job_id)
+            
+            return {
+                "success": True,
+                "message": "Job completed",
+                "job": final_job,
+                "sent": total_sent,
+                "failed": total_failed
+            }
+            
+        except Exception as e:
+            # Job failed - mark it but allow resume
+            logger.error(f"Bulk job {job_id} failed: {str(e)}")
+            await self.bulk_job_repo.update_job_status(
+                job_id, 
+                BulkJobStatus.FAILED, 
+                error_message=str(e)
+            )
+            await self.bulk_job_repo.update_job_counts(job_id)
+            await self.db.commit()
+            
+            return {
+                "success": False,
+                "error": str(e),
+                "job": await self.bulk_job_repo.get_job_by_id(job_id),
+                "sent": total_sent,
+                "failed": total_failed,
+                "can_resume": True
+            }
+    
+    async def pause_bulk_job(self, job_id: int) -> Dict[str, Any]:
+        """
+        Pause a running bulk job.
+        Can be resumed later with process_bulk_job().
+        """
+        job = await self.bulk_job_repo.get_job_by_id(job_id)
+        if not job:
+            return {"success": False, "error": "Job not found"}
         
-        # Log completion activity
-        await self.activity_repo.log_bulk_send_completed(
-            success_count=results["success_count"],
-            failed_count=results["failed_count"]
+        if job["status"] != BulkJobStatus.RUNNING:
+            return {"success": False, "error": f"Job is not running (status: {job['status']})"}
+        
+        await self.bulk_job_repo.update_job_status(job_id, BulkJobStatus.PAUSED)
+        await self.db.commit()
+        
+        logger.info(f"Bulk job {job_id} paused")
+        
+        return {
+            "success": True,
+            "message": "Job paused",
+            "job": await self.bulk_job_repo.get_job_by_id(job_id)
+        }
+    
+    async def cancel_bulk_job(self, job_id: int) -> Dict[str, Any]:
+        """
+        Cancel a bulk job (cannot be resumed).
+        """
+        job = await self.bulk_job_repo.get_job_by_id(job_id)
+        if not job:
+            return {"success": False, "error": "Job not found"}
+        
+        if job["status"] == BulkJobStatus.COMPLETED:
+            return {"success": False, "error": "Job is already completed"}
+        
+        if job["status"] == BulkJobStatus.CANCELLED:
+            return {"success": True, "message": "Job was already cancelled"}
+        
+        await self.bulk_job_repo.update_job_status(job_id, BulkJobStatus.CANCELLED)
+        await self.db.commit()
+        
+        logger.info(f"Bulk job {job_id} cancelled")
+        
+        return {
+            "success": True,
+            "message": "Job cancelled",
+            "job": await self.bulk_job_repo.get_job_by_id(job_id)
+        }
+    
+    async def get_bulk_job(self, job_id: int) -> Dict[str, Any]:
+        """Get a bulk job with current status."""
+        job = await self.bulk_job_repo.get_job_by_id(job_id)
+        if not job:
+            return {"success": False, "error": "Job not found"}
+        
+        return {"success": True, "job": job}
+    
+    async def get_bulk_jobs(
+        self,
+        status: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 20
+    ) -> Dict[str, Any]:
+        """Get all bulk jobs with optional filter."""
+        jobs = await self.bulk_job_repo.get_all_jobs(status=status, skip=skip, limit=limit)
+        total = await self.bulk_job_repo.get_jobs_count(status=status)
+        
+        return {
+            "success": True,
+            "jobs": jobs,
+            "total": total,
+            "skip": skip,
+            "limit": limit
+        }
+    
+    async def get_bulk_job_items(
+        self,
+        job_id: int,
+        status: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 50
+    ) -> Dict[str, Any]:
+        """Get items for a bulk job."""
+        job = await self.bulk_job_repo.get_job_by_id(job_id)
+        if not job:
+            return {"success": False, "error": "Job not found"}
+        
+        items = await self.bulk_job_repo.get_job_items(
+            job_id=job_id,
+            status=status,
+            skip=skip,
+            limit=limit
         )
         
-        results["success"] = results["failed_count"] == 0
-        return results
+        return {
+            "success": True,
+            "items": items,
+            "job": job
+        }
     
     # ============================================
     # MESSAGE STATUS OPERATIONS
@@ -423,13 +698,13 @@ class WhatsAppOutreachService:
             
             # Log activity for significant status changes
             lead_name = lead.get("first_name", "")
-            if status == "DELIVERED":
+            if status == DeliveryStatus.DELIVERED:
                 await self.activity_repo.log_message_delivered(
                     lead_id=lead_id,
                     lead_name=lead_name,
                     lead_mobile=phone_number
                 )
-            elif status == "READ":
+            elif status == DeliveryStatus.READ:
                 await self.activity_repo.log_message_read(
                     lead_id=lead_id,
                     lead_name=lead_name,
@@ -487,9 +762,9 @@ class WhatsAppOutreachService:
                 continue
             
             # Map status
-            status = msg.get("statusString", "SENT")
+            status = msg.get("statusString", DeliveryStatus.SENT)
             if direction == "inbound":
-                status = "RECEIVED"
+                status = DeliveryStatus.RECEIVED
                 
             try:
                 if direction == "outbound":
@@ -514,7 +789,7 @@ class WhatsAppOutreachService:
                 
         # Update lead status to REPLIED if there's an inbound message
         if any(not msg.get("owner") for msg in messages):
-            await self.lead_repo.update_delivery_status(lead_id, "REPLIED")
+            await self.lead_repo.update_delivery_status(lead_id, DeliveryStatus.REPLIED)
             
         return {"success": True, "count": new_messages_count}
 
@@ -811,7 +1086,7 @@ class WhatsAppOutreachService:
     
     async def _handle_message_sent(self, lead: dict, event_data: dict) -> None:
         """Handle templateMessageSent event."""
-        await self.lead_repo.update_delivery_status(lead["id"], "SENT")
+        await self.lead_repo.update_delivery_status(lead["id"], DeliveryStatus.SENT)
     
     async def _handle_message_delivered(self, lead: dict, event_data: dict) -> None:
         """Handle messageDelivered event - update lead, message, and log activity."""
@@ -821,8 +1096,8 @@ class WhatsAppOutreachService:
         wati_msg_id = event_data.get("id", "")
         
         # All updates in single transaction
-        await self.lead_repo.update_delivery_status(lead_id, "DELIVERED")
-        await self.message_repo.update_status_by_wati_id(wati_msg_id, "DELIVERED")
+        await self.lead_repo.update_delivery_status(lead_id, DeliveryStatus.DELIVERED)
+        await self.message_repo.update_status_by_wati_id(wati_msg_id, DeliveryStatus.DELIVERED)
         await self.activity_repo.log_message_delivered(lead_id, lead_name, phone_number)
     
     async def _handle_message_read(self, lead: dict, event_data: dict) -> None:
@@ -832,8 +1107,8 @@ class WhatsAppOutreachService:
         phone_number = lead["mobile_number"]
         wati_msg_id = event_data.get("id", "")
         
-        await self.lead_repo.update_delivery_status(lead_id, "READ")
-        await self.message_repo.update_status_by_wati_id(wati_msg_id, "READ")
+        await self.lead_repo.update_delivery_status(lead_id, DeliveryStatus.READ)
+        await self.message_repo.update_status_by_wati_id(wati_msg_id, DeliveryStatus.READ)
         await self.activity_repo.log_message_read(lead_id, lead_name, phone_number)
     
     async def _handle_message_failed(self, lead: dict, event_data: dict) -> None:
@@ -844,8 +1119,8 @@ class WhatsAppOutreachService:
         wati_msg_id = event_data.get("id", "")
         failed_reason = event_data.get("failedDetail", "Unknown error")
         
-        await self.lead_repo.update_delivery_status(lead_id, "FAILED", failed_reason)
-        await self.message_repo.update_status_by_wati_id(wati_msg_id, "FAILED", failed_reason)
+        await self.lead_repo.update_delivery_status(lead_id, DeliveryStatus.FAILED, failed_reason)
+        await self.message_repo.update_status_by_wati_id(wati_msg_id, DeliveryStatus.FAILED, failed_reason)
         await self.activity_repo.log_message_failed(lead_id, lead_name, phone_number, failed_reason)
     
     async def _handle_inbound_message(self, lead: dict, event_data: dict) -> None:
@@ -888,7 +1163,7 @@ class WhatsAppOutreachService:
         original_msg_id = event_data.get("localMessageId", "")
         
         # Update lead status to REPLIED (highest engagement!)
-        await self.lead_repo.update_delivery_status(lead_id, "REPLIED")
+        await self.lead_repo.update_delivery_status(lead_id, DeliveryStatus.REPLIED)
         
         # Create inbound message record
         await self.message_repo.create_inbound_message(

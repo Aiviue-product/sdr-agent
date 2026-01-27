@@ -7,12 +7,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import WhatsAppActivityModal from '../components/whatsapp/WhatsAppActivityModal';
+import WhatsAppBulkJobModal from '../components/whatsapp/WhatsAppBulkJobModal';
 import WhatsAppDetailPanel from '../components/whatsapp/WhatsAppDetailPanel';
 import WhatsAppHeader from '../components/whatsapp/WhatsAppHeader';
 import WhatsAppLeadModal from '../components/whatsapp/WhatsAppLeadModal';
 import WhatsAppLeadsList from '../components/whatsapp/WhatsAppLeadsList';
 import {
-    bulkSendWhatsApp,
     createWhatsAppLead,
     deleteWhatsAppLead,
     fetchWhatsAppLeadDetail,
@@ -86,6 +86,10 @@ export default function WhatsAppOutreachPage() {
     const [loadingActivities, setLoadingActivities] = useState(false);
     const [activityLeadId, setActivityLeadId] = useState<number | null>(null);
     const [activityLeadName, setActivityLeadName] = useState<string>('');
+
+    // Bulk Job Modal (NEW)
+    const [showBulkJobModal, setShowBulkJobModal] = useState(false);
+    const [bulkJobLeadIds, setBulkJobLeadIds] = useState<number[]>([]);
 
     // ============================================
     // DATA LOADING
@@ -369,32 +373,28 @@ export default function WhatsAppOutreachPage() {
             return;
         }
 
-        setIsBulkSending(true);
-        try {
-            const leadIds = Array.from(selectedForBulk);
-            const result = await bulkSendWhatsApp({
-                lead_ids: leadIds,
-                template_name: selectedTemplate,
-                broadcast_name: `bulk_${Date.now()}`
-            });
+        // Open the bulk job modal with selected leads
+        const leadIds = Array.from(selectedForBulk);
+        setBulkJobLeadIds(leadIds);
+        setShowBulkJobModal(true);
+    };
 
-            if (result.success) {
-                toast.success(`✅ Sent: ${result.success_count} | ❌ Failed: ${result.failed_count}`);
-                clearBulkSelection();
-                loadLeads(); // Refresh left panel
-                // Also refresh the selected lead's detail if it was in the bulk send
-                if (selectedLeadId && leadIds.includes(selectedLeadId)) {
-                    loadLeadDetail(selectedLeadId);
-                }
-            } else {
-                toast.error('Bulk send failed');
-            }
-        } catch (error) {
-            const err = error as Error;
-            toast.error(err.message || 'Bulk send failed');
-        } finally {
-            setIsBulkSending(false);
+    const handleBulkJobComplete = () => {
+        // Clear selection and refresh data when job completes
+        clearBulkSelection();
+        loadLeads();
+        
+        // Refresh selected lead if it was in the bulk send
+        if (selectedLeadId && bulkJobLeadIds.includes(selectedLeadId)) {
+            loadLeadDetail(selectedLeadId);
         }
+        
+        toast.success('Bulk send job completed!');
+    };
+
+    const closeBulkJobModal = () => {
+        setShowBulkJobModal(false);
+        setBulkJobLeadIds([]);
     };
 
     const openActivityModal = (leadId?: number, leadName?: string) => {
@@ -518,6 +518,15 @@ export default function WhatsAppOutreachPage() {
                 onSave={handleSaveLead}
                 lead={editingLead}
                 isSaving={isSavingLead}
+            />
+
+            {/* Bulk Job Modal (NEW) */}
+            <WhatsAppBulkJobModal
+                isOpen={showBulkJobModal}
+                onClose={closeBulkJobModal}
+                leadIds={bulkJobLeadIds}
+                templateName={selectedTemplate}
+                onComplete={handleBulkJobComplete}
             />
         </div>
     );

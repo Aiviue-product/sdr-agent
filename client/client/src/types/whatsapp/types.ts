@@ -4,6 +4,57 @@
  */
 
 // ============================================
+// ENUMS & CONSTANTS
+// ============================================
+
+/**
+ * Message delivery status.
+ * Keep in sync with backend: app/modules/whatsapp_outreach/constants.py
+ */
+export enum DeliveryStatus {
+    PENDING = 'PENDING',
+    SENT = 'SENT',
+    DELIVERED = 'DELIVERED',
+    READ = 'READ',
+    FAILED = 'FAILED',
+    REPLIED = 'REPLIED',
+    RECEIVED = 'RECEIVED',
+    UNKNOWN = 'UNKNOWN',
+}
+
+export enum MessageDirection {
+    OUTBOUND = 'outbound',
+    INBOUND = 'inbound',
+}
+
+export enum ActivityType {
+    MESSAGE_SENT = 'message_sent',
+    MESSAGE_DELIVERED = 'message_delivered',
+    MESSAGE_READ = 'message_read',
+    MESSAGE_FAILED = 'message_failed',
+    REPLY_RECEIVED = 'reply_received',
+    LEAD_CREATED = 'lead_created',
+    LEADS_IMPORTED = 'leads_imported',
+    BULK_SEND_STARTED = 'bulk_send_started',
+    BULK_SEND_COMPLETED = 'bulk_send_completed',
+}
+
+export enum LeadSource {
+    MANUAL = 'manual',
+    EMAIL_IMPORT = 'email_import',
+    LINKEDIN_IMPORT = 'linkedin_import',
+    CSV_IMPORT = 'csv_import',
+    API = 'api',
+}
+
+// Helper functions for status
+export const isSuccessStatus = (status: string): boolean => 
+    [DeliveryStatus.SENT, DeliveryStatus.DELIVERED, DeliveryStatus.READ, DeliveryStatus.REPLIED].includes(status as DeliveryStatus);
+
+export const isEngagementStatus = (status: string): boolean =>
+    [DeliveryStatus.READ, DeliveryStatus.REPLIED].includes(status as DeliveryStatus);
+
+// ============================================
 // LEAD TYPES
 // ============================================
 
@@ -170,10 +221,22 @@ export interface WhatsAppActivitiesResponse {
 // CONFIG & IMPORT TYPES
 // ============================================
 
+export interface WhatsAppCacheStatus {
+    templates: {
+        status: 'empty' | 'valid' | 'expired';
+        count: number;
+        expires_in_seconds: number;
+        by_name_cache_size: number;
+    };
+    ttl_seconds: number;
+}
+
 export interface WhatsAppConfigStatus {
     configured: boolean;
-    endpoint?: string;
-    channel?: string;
+    channel_configured: boolean;
+    channel_hint?: string;  // Masked channel number (e.g., "9198****")
+    webhook_auth_enabled: boolean;
+    cache_status?: WhatsAppCacheStatus;
 }
 
 export interface ImportResponse {
@@ -209,4 +272,85 @@ export interface UpdateLeadRequest {
     designation?: string;
     linkedin_url?: string;
     sector?: string;
+}
+
+// ============================================
+// BULK JOB TYPES
+// ============================================
+
+export enum BulkJobStatus {
+    PENDING = 'pending',
+    RUNNING = 'running',
+    PAUSED = 'paused',
+    COMPLETED = 'completed',
+    FAILED = 'failed',
+    CANCELLED = 'cancelled',
+}
+
+export enum BulkJobItemStatus {
+    PENDING = 'pending',
+    PROCESSING = 'processing',
+    SENT = 'sent',
+    FAILED = 'failed',
+    SKIPPED = 'skipped',
+}
+
+export interface BulkJobItem {
+    id: number;
+    job_id: number;
+    lead_id: number;
+    status: BulkJobItemStatus | string;
+    error_message?: string;
+    wati_message_id?: string;
+    processed_at?: string;
+    created_at: string;
+}
+
+export interface BulkJobDetail {
+    id: number;
+    template_name: string;
+    broadcast_name?: string;
+    status: BulkJobStatus | string;
+    total_count: number;
+    pending_count: number;
+    sent_count: number;
+    failed_count: number;
+    progress_percent: number;
+    error_message?: string;
+    created_at: string;
+    started_at?: string;
+    completed_at?: string;
+    updated_at?: string;
+}
+
+export interface BulkJobsListResponse {
+    success: boolean;
+    jobs: BulkJobDetail[];
+    total: number;
+    skip: number;
+    limit: number;
+}
+
+export interface BulkJobResponse {
+    success: boolean;
+    job?: BulkJobDetail;
+    message?: string;
+    error?: string;
+    sent?: number;
+    failed?: number;
+    can_resume?: boolean;
+}
+
+export interface BulkJobItemsResponse {
+    success: boolean;
+    items: BulkJobItem[];
+    job?: BulkJobDetail;
+    error?: string;
+}
+
+export interface CreateBulkJobRequest {
+    lead_ids: number[];
+    template_name: string;
+    broadcast_name?: string;
+    start_immediately?: boolean;
 }

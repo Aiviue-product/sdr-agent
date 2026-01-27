@@ -43,7 +43,7 @@ if GEMINI_TIER == "enterprise":
     RATE_LIMIT_DELAY_SECONDS = 0
     ENABLE_PARALLEL = True
 elif GEMINI_TIER == "paid":
-    RATE_LIMIT_DELAY_SECONDS = 1  # 60 req/min limit
+    RATE_LIMIT_DELAY_SECONDS = 2  # 60 req/min limit
     ENABLE_PARALLEL = True
 else:  # "free" or default
     RATE_LIMIT_DELAY_SECONDS = 13  # 5 req/min limit

@@ -4,6 +4,8 @@ Handles WhatsApp messaging, lead management, and WATI webhooks.
 """
 import logging
 import hmac
+import hashlib
+import secrets
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,9 +19,10 @@ from app.modules.whatsapp_outreach.repositories.whatsapp_activity_repository imp
 from app.modules.whatsapp_outreach.schemas.whatsapp_schemas import (
     # Request schemas
     SendWhatsAppRequest,
-    BulkSendWhatsAppRequest,
+    BulkSendWhatsAppRequest,  # Still used by check_bulk_eligibility
     CreateLeadRequest,
     UpdateLeadRequest,
+    CreateBulkJobRequest,
     # Response schemas
     WhatsAppLeadSummary,
     WhatsAppLeadDetail,
@@ -27,13 +30,16 @@ from app.modules.whatsapp_outreach.schemas.whatsapp_schemas import (
     WhatsAppMessageItem,
     ConversationResponse,
     SendWhatsAppResponse,
-    BulkSendWhatsAppResponse,
     BulkEligibilityResponse,
     TemplatesResponse,
     ActivitiesResponse,
     WhatsAppActivityItem,
     ImportResponse,
     WebhookResponse,
+    BulkJobDetail,
+    BulkJobsListResponse,
+    BulkJobResponse,
+    BulkJobItemsResponse,
 )
 
 router = APIRouter()
@@ -44,15 +50,80 @@ logger = logging.getLogger("whatsapp_api")
 # WEBHOOK SECURITY
 # ============================================
 
+def _get_client_ip(request: Request) -> str:
+    """Extract client IP from request, handling proxies."""
+    # Check for forwarded headers (when behind reverse proxy)
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        # X-Forwarded-For can contain multiple IPs; first is the client
+        return forwarded_for.split(",")[0].strip()
+    
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+    
+    # Direct connection
+    return request.client.host if request.client else ""
+
+
+def _is_ip_allowed(client_ip: str) -> bool:
+    """Check if client IP is in the whitelist (if configured)."""
+    allowed_ips = settings.WATI_WEBHOOK_ALLOWED_IPS
+    
+    # If no whitelist configured, allow all (rely on token auth)
+    if not allowed_ips:
+        return True
+    
+    # Parse comma-separated IPs
+    whitelist = [ip.strip() for ip in allowed_ips.split(",") if ip.strip()]
+    
+    if not whitelist:
+        return True
+    
+    return client_ip in whitelist
+
+
 def verify_wati_webhook(request: Request) -> bool:
     """
-    Verify WATI webhook authenticity.
+    Verify WATI webhook authenticity using multiple security layers.
     
-    WATI uses a token-based auth in headers.
-    For now, we'll check for a custom header if configured.
+    Security layers:
+    1. IP whitelist (if WATI_WEBHOOK_ALLOWED_IPS is configured)
+    2. Secret token validation (if WATI_WEBHOOK_SECRET is configured)
+    
+    Returns True if verification passes, False otherwise.
     """
-    # WATI doesn't have standard webhook signing yet
-    # Implement IP whitelist or header check if needed
+    client_ip = _get_client_ip(request)
+    
+    # Layer 1: IP Whitelist Check
+    if not _is_ip_allowed(client_ip):
+        logger.warning(f"Webhook rejected: IP {client_ip} not in whitelist")
+        return False
+    
+    # Layer 2: Secret Token Validation
+    webhook_secret = settings.WATI_WEBHOOK_SECRET
+    
+    if webhook_secret:
+        # Check for secret in header (custom header approach)
+        provided_token = request.headers.get("X-Webhook-Secret") or request.headers.get("Authorization")
+        
+        if not provided_token:
+            logger.warning(f"Webhook rejected: Missing authentication header from {client_ip}")
+            return False
+        
+        # Remove 'Bearer ' prefix if present
+        if provided_token.startswith("Bearer "):
+            provided_token = provided_token[7:]
+        
+        # Constant-time comparison to prevent timing attacks
+        if not secrets.compare_digest(provided_token, webhook_secret):
+            logger.warning(f"Webhook rejected: Invalid secret token from {client_ip}")
+            return False
+    else:
+        # No secret configured - log warning in production
+        logger.warning("WATI_WEBHOOK_SECRET not configured - webhook authentication disabled")
+    
+    logger.debug(f"Webhook verified successfully from {client_ip}")
     return True
 
 
@@ -60,15 +131,43 @@ def verify_wati_webhook(request: Request) -> bool:
 # CONFIGURATION ENDPOINT
 # ============================================
 
+def _mask_sensitive_string(value: str, show_chars: int = 4) -> str:
+    """
+    Mask a sensitive string, showing only first few characters.
+    Example: "919876543210" -> "9198****"
+    """
+    if not value:
+        return ""
+    if len(value) <= show_chars:
+        return "*" * len(value)
+    return value[:show_chars] + "*" * (len(value) - show_chars)
+
+
 @router.get("/config", summary="Check WhatsApp configuration status")
 async def get_config_status():
-    """Check if WATI API is properly configured."""
+    """
+    Check if WATI API is properly configured.
+    
+    Returns:
+        - configured: Whether WATI credentials are set
+        - channel_configured: Whether channel number is set (masked for security)
+        - webhook_auth_enabled: Whether webhook authentication is enabled
+        - cache_status: Current template cache status
+    
+    Note: Sensitive values are masked for security.
+    """
     from app.modules.whatsapp_outreach.services.wati_client import wati_client
     
+    is_configured = wati_client.is_configured()
+    channel = settings.WATI_CHANNEL_NUMBER
+    
     return {
-        "configured": wati_client.is_configured(),
-        "endpoint": settings.WATI_API_ENDPOINT if wati_client.is_configured() else None,
-        "channel": settings.WATI_CHANNEL_NUMBER if wati_client.is_configured() else None
+        "configured": is_configured,
+        "channel_configured": bool(channel),
+        # Show masked channel for debugging (e.g., "9198****" instead of full number)
+        "channel_hint": _mask_sensitive_string(channel, 4) if channel else None,
+        "webhook_auth_enabled": bool(settings.WATI_WEBHOOK_SECRET),
+        "cache_status": wati_client.get_cache_status() if is_configured else None
     }
 
 
@@ -77,18 +176,25 @@ async def get_config_status():
 # ============================================
 
 @router.get("/templates", response_model=TemplatesResponse, summary="Get available WhatsApp templates")
-async def get_templates(db: AsyncSession = Depends(get_db)):
+async def get_templates(
+    refresh: bool = Query(default=False, description="Force refresh from WATI (bypass cache)"),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Get all approved WATI templates.
     
     Returns simplified template info for UI dropdown.
+    
+    Caching:
+    - Templates are cached for 5 minutes
+    - Use ?refresh=true to force fetch from WATI
     """
     service = WhatsAppOutreachService(db)
     
     if not service.is_configured():
         raise HTTPException(status_code=503, detail="WATI API not configured")
     
-    result = await service.get_available_templates()
+    result = await service.get_available_templates(force_refresh=refresh)
     
     if not result.get("success"):
         raise HTTPException(status_code=500, detail=result.get("error", "Failed to fetch templates"))
@@ -98,6 +204,39 @@ async def get_templates(db: AsyncSession = Depends(get_db)):
         templates=result.get("templates", []),
         total=result.get("total", 0)
     )
+
+
+@router.get("/cache/status", summary="Get WATI cache status")
+async def get_cache_status():
+    """
+    Get current status of the WATI template cache.
+    
+    Useful for debugging and monitoring cache behavior.
+    """
+    from app.modules.whatsapp_outreach.services.wati_client import wati_client
+    
+    return {
+        "cache": wati_client.get_cache_status(),
+        "message": "Use /templates?refresh=true to force refresh"
+    }
+
+
+@router.post("/cache/invalidate", summary="Invalidate WATI cache")
+async def invalidate_cache():
+    """
+    Manually invalidate the WATI template cache.
+    
+    Use this when you've updated templates in WATI dashboard
+    and want to see changes immediately without waiting for TTL expiry.
+    """
+    from app.modules.whatsapp_outreach.services.wati_client import wati_client
+    
+    wati_client.invalidate_template_cache()
+    
+    return {
+        "success": True,
+        "message": "Template cache invalidated. Next request will fetch fresh data from WATI."
+    }
 
 
 # ============================================
@@ -345,34 +484,205 @@ async def check_bulk_eligibility(
     return BulkEligibilityResponse(**result)
 
 
-@router.post("/bulk/send", response_model=BulkSendWhatsAppResponse, summary="Bulk send WhatsApp messages")
-async def bulk_send_whatsapp(
-    request: BulkSendWhatsAppRequest,
+# ============================================
+# BULK JOB OPERATIONS (with job tracking)
+# ============================================
+
+@router.post("/bulk/jobs", response_model=BulkJobResponse, summary="Create a bulk send job")
+async def create_bulk_job(
+    request: CreateBulkJobRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Send WhatsApp messages to multiple leads.
+    Create a new bulk send job with tracking.
     
-    Includes rate limiting with delays between sends.
+    This creates a job that can be:
+    - Started immediately (if start_immediately=true)
+    - Started later via POST /bulk/jobs/{job_id}/start
+    - Resumed if interrupted
+    - Paused and cancelled
+    
+    Benefits over /bulk/send:
+    - Job persists even if server crashes
+    - Can resume from where it stopped
+    - Progress tracking in real-time
+    - Can pause and cancel
     """
     service = WhatsAppOutreachService(db)
     
     if not service.is_configured():
         raise HTTPException(status_code=503, detail="WATI API not configured")
     
-    result = await service.bulk_send_messages(
+    # Create the job
+    result = await service.create_bulk_job(
         lead_ids=request.lead_ids,
         template_name=request.template_name,
         broadcast_name=request.broadcast_name
     )
     
-    return BulkSendWhatsAppResponse(
+    if not result.get("success"):
+        # Return 400 for validation errors (missing leads), 500 for server errors
+        status_code = 400 if result.get("missing_ids") else 500
+        raise HTTPException(status_code=status_code, detail=result.get("error"))
+    
+    # Start immediately if requested
+    if request.start_immediately:
+        job_id = result["job"]["id"]
+        process_result = await service.process_bulk_job(job_id)
+        return BulkJobResponse(
+            success=process_result.get("success", False),
+            job=BulkJobDetail(**process_result["job"]) if process_result.get("job") else None,
+            message=process_result.get("message"),
+            error=process_result.get("error"),
+            sent=process_result.get("sent"),
+            failed=process_result.get("failed"),
+            can_resume=process_result.get("can_resume")
+        )
+    
+    return BulkJobResponse(
+        success=True,
+        job=BulkJobDetail(**result["job"]),
+        message=result.get("message")
+    )
+
+
+@router.get("/bulk/jobs", response_model=BulkJobsListResponse, summary="List all bulk jobs")
+async def list_bulk_jobs(
+    status: Optional[str] = Query(default=None, description="Filter by status"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all bulk send jobs with optional status filter.
+    
+    Status values: pending, running, paused, completed, failed, cancelled
+    """
+    service = WhatsAppOutreachService(db)
+    result = await service.get_bulk_jobs(status=status, skip=skip, limit=limit)
+    
+    return BulkJobsListResponse(
+        success=True,
+        jobs=[BulkJobDetail(**j) for j in result["jobs"]],
+        total=result["total"],
+        skip=skip,
+        limit=limit
+    )
+
+
+@router.get("/bulk/jobs/{job_id}", response_model=BulkJobResponse, summary="Get bulk job details")
+async def get_bulk_job(job_id: int, db: AsyncSession = Depends(get_db)):
+    """Get details of a specific bulk job."""
+    service = WhatsAppOutreachService(db)
+    result = await service.get_bulk_job(job_id)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    
+    return BulkJobResponse(
+        success=True,
+        job=BulkJobDetail(**result["job"])
+    )
+
+
+@router.get("/bulk/jobs/{job_id}/items", response_model=BulkJobItemsResponse, summary="Get bulk job items")
+async def get_bulk_job_items(
+    job_id: int,
+    status: Optional[str] = Query(default=None, description="Filter by item status"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=100),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get individual items for a bulk job.
+    
+    Item status values: pending, processing, sent, failed, skipped
+    """
+    service = WhatsAppOutreachService(db)
+    result = await service.get_bulk_job_items(
+        job_id=job_id,
+        status=status,
+        skip=skip,
+        limit=limit
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    
+    from app.modules.whatsapp_outreach.schemas.whatsapp_schemas import BulkJobItem
+    
+    return BulkJobItemsResponse(
+        success=True,
+        items=[BulkJobItem(**item) for item in result["items"]],
+        job=BulkJobDetail(**result["job"]) if result.get("job") else None
+    )
+
+
+@router.post("/bulk/jobs/{job_id}/start", response_model=BulkJobResponse, summary="Start/resume a bulk job")
+async def start_bulk_job(job_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Start or resume a bulk job.
+    
+    Can be used to:
+    - Start a pending job
+    - Resume a paused job
+    - Retry a failed job (continues from where it stopped)
+    """
+    service = WhatsAppOutreachService(db)
+    
+    if not service.is_configured():
+        raise HTTPException(status_code=503, detail="WATI API not configured")
+    
+    result = await service.process_bulk_job(job_id)
+    
+    return BulkJobResponse(
         success=result.get("success", False),
-        broadcast_name=result.get("broadcast_name", ""),
-        total=len(request.lead_ids),
-        success_count=result.get("success_count", 0),
-        failed_count=result.get("failed_count", 0),
-        results=result.get("results", [])
+        job=BulkJobDetail(**result["job"]) if result.get("job") else None,
+        message=result.get("message"),
+        error=result.get("error"),
+        sent=result.get("sent"),
+        failed=result.get("failed"),
+        can_resume=result.get("can_resume")
+    )
+
+
+@router.post("/bulk/jobs/{job_id}/pause", response_model=BulkJobResponse, summary="Pause a bulk job")
+async def pause_bulk_job(job_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Pause a running bulk job.
+    
+    Can be resumed later via POST /bulk/jobs/{job_id}/start
+    """
+    service = WhatsAppOutreachService(db)
+    result = await service.pause_bulk_job(job_id)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    
+    return BulkJobResponse(
+        success=True,
+        job=BulkJobDetail(**result["job"]),
+        message=result.get("message")
+    )
+
+
+@router.post("/bulk/jobs/{job_id}/cancel", response_model=BulkJobResponse, summary="Cancel a bulk job")
+async def cancel_bulk_job(job_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Cancel a bulk job permanently.
+    
+    Cannot be resumed after cancellation.
+    """
+    service = WhatsAppOutreachService(db)
+    result = await service.cancel_bulk_job(job_id)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    
+    return BulkJobResponse(
+        success=True,
+        job=BulkJobDetail(**result["job"]),
+        message=result.get("message")
     )
 
 
@@ -468,6 +778,10 @@ async def wati_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Handle incoming WATI webhook events.
     
+    Security:
+    - IP whitelist validation (if WATI_WEBHOOK_ALLOWED_IPS configured)
+    - Secret token validation (if WATI_WEBHOOK_SECRET configured)
+    
     Supported events:
     - templateMessageSent: Message sent successfully
     - messageDelivered: Message delivered to device
@@ -475,19 +789,34 @@ async def wati_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     - templateMessageFailed: Message delivery failed
     - message: Inbound reply from lead
     """
-    # Verify webhook (if implemented)
+    # Security verification
     if not verify_wati_webhook(request):
-        raise HTTPException(status_code=401, detail="Unauthorized webhook request")
+        logger.error(f"Unauthorized webhook attempt from {_get_client_ip(request)}")
+        raise HTTPException(
+            status_code=401, 
+            detail="Unauthorized webhook request"
+        )
     
+    # Parse JSON payload
     try:
         event_data = await request.json()
-    except Exception:
+    except Exception as e:
+        logger.error(f"Invalid webhook JSON payload: {str(e)}")
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
     
-    logger.info(f"📬 Webhook received: {event_data.get('eventType', 'unknown')}")
+    # Log webhook receipt (without emoji for production logging)
+    event_type = event_data.get('eventType', 'unknown')
+    wa_id = event_data.get('waId', 'unknown')
+    logger.info(f"Webhook received: type={event_type}, waId={wa_id}")
     
+    # Process the webhook event
     service = WhatsAppOutreachService(db)
-    
     result = await service.handle_webhook_event(event_data)
+    
+    # Log processing result
+    if result.get("success"):
+        logger.info(f"Webhook processed successfully: type={event_type}, lead_id={result.get('lead_id')}")
+    else:
+        logger.warning(f"Webhook processing failed: type={event_type}, error={result.get('error')}")
     
     return WebhookResponse(**result)

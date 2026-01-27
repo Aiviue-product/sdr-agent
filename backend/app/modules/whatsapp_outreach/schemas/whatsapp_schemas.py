@@ -320,3 +320,73 @@ class WebhookResponse(BaseModel):
     event_type: Optional[str] = None
     lead_id: Optional[int] = None
     error: Optional[str] = None
+
+
+# ============================================
+# BULK JOB SCHEMAS
+# ============================================
+
+class BulkJobItem(BaseModel):
+    """Single item in a bulk job"""
+    id: int
+    job_id: int
+    lead_id: int
+    status: str
+    error_message: Optional[str] = None
+    wati_message_id: Optional[str] = None
+    processed_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class BulkJobDetail(BaseModel):
+    """Full bulk job details"""
+    id: int
+    template_name: str
+    broadcast_name: Optional[str] = None
+    status: str
+    total_count: int
+    pending_count: int
+    sent_count: int
+    failed_count: int
+    progress_percent: float
+    error_message: Optional[str] = None
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class BulkJobsListResponse(BaseModel):
+    """Response for bulk jobs list"""
+    success: bool
+    jobs: List[BulkJobDetail]
+    total: int
+    skip: int
+    limit: int
+
+
+class BulkJobResponse(BaseModel):
+    """Response for single bulk job operation"""
+    success: bool
+    job: Optional[BulkJobDetail] = None
+    message: Optional[str] = None
+    error: Optional[str] = None
+    sent: Optional[int] = None
+    failed: Optional[int] = None
+    can_resume: Optional[bool] = None
+
+
+class BulkJobItemsResponse(BaseModel):
+    """Response for bulk job items"""
+    success: bool
+    items: List[BulkJobItem]
+    job: Optional[BulkJobDetail] = None
+    error: Optional[str] = None
+
+
+class CreateBulkJobRequest(BaseModel):
+    """Request to create a new bulk job"""
+    lead_ids: List[int] = Field(..., min_length=1, max_length=1000)
+    template_name: str
+    broadcast_name: Optional[str] = None
+    start_immediately: bool = Field(default=False, description="If true, starts processing right away")
