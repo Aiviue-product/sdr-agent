@@ -1,405 +1,772 @@
-# 🚀 SDR Agent - Lead Verification & Enrichment System
+# 🚀 SDR Agent - Multi-Channel Sales Outreach Platform
 
-A full-stack application for lead verification and AI-powered enrichment. Built with **FastAPI** (Python) for the backend and **Next.js** (React) for the frontend.
+<div align="center">
 
----
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.11+-green.svg)
+![Next.js](https://img.shields.io/badge/Next.js-16+-black.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)
+![License](https://img.shields.io/badge/license-MIT-orange.svg)
 
-## 📸 Screenshots
+**AI-Powered Lead Discovery, Verification & Multi-Channel Outreach System**
 
-### UI Preview
-<img width="1255" height="818" alt="SDR Agent UI" src="https://github.com/user-attachments/assets/4a316ed5-33d7-434d-816c-f2b62ed64cf6" />
+*Discover hiring signals on LinkedIn • Verify leads with AI enrichment • Execute personalized outreach via Email, LinkedIn DM, and WhatsApp*
 
-### Output Excel
-<img width="1498" height="515" alt="Output Excel" src="https://github.com/user-attachments/assets/f25170de-3d09-4846-b320-fa7cd46857b3" />
+</div>
 
 ---
 
 ## 📋 Table of Contents
 
-1. [Prerequisites](#-prerequisites)
-2. [Clone the Repository](#-clone-the-repository)
-3. [Backend Setup](#-backend-setup)
-   - [Create Virtual Environment](#step-1-create-virtual-environment)
-   - [Activate Virtual Environment](#step-2-activate-virtual-environment)
-   - [Install Dependencies](#step-3-install-dependencies)
-   - [Configure Environment Variables](#step-4-configure-environment-variables)
-   - [Run the Backend Server](#step-5-run-the-backend-server)
-4. [Frontend Setup](#-frontend-setup)
-   - [Navigate to Client Directory](#step-1-navigate-to-client-directory)
-   - [Install Node Dependencies](#step-2-install-node-dependencies)
-   - [Configure Frontend Environment](#step-3-configure-frontend-environment-optional)
-   - [Run the Frontend Server](#step-4-run-the-frontend-server)
-5. [Access the Application](#-access-the-application)
-6. [Project Structure](#-project-structure)
-7. [Troubleshooting](#-troubleshooting)
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [System Architecture](#-system-architecture)
+- [Module Deep Dive](#-module-deep-dive)
+  - [LinkedIn Signal Outreach](#1-linkedin-signal-outreach-module)
+  - [Email Outreach & Campaign](#2-email-outreach--campaign-module)
+  - [WhatsApp Outreach](#3-whatsapp-outreach-module)
+- [Tech Stack](#-tech-stack)
+- [API Reference](#-api-reference)
+- [Quick Start](#-quick-start)
+- [Configuration](#-configuration)
+- [Project Structure](#-project-structure)
+- [Screenshots](#-screenshots)
+- [Troubleshooting](#-troubleshooting)
 
 ---
 
-## 📦 Prerequisites
+## 🎯 Overview
 
-Before you begin, make sure you have the following installed on your system:
+SDR Agent is a comprehensive **Sales Development Representative (SDR) automation platform** that combines AI intelligence with multi-channel outreach capabilities. The system helps sales teams:
 
-| Software | Version | Download Link |
-|----------|---------|---------------|
-| **Python** | 3.11 | [Download Python](https://www.python.org/downloads/) |
-| **Node.js** | 18+ (LTS recommended) | [Download Node.js](https://nodejs.org/) |
-| **Git** | Latest | [Download Git](https://git-scm.com/downloads) |
+1. **Discover** potential leads from LinkedIn based on keyword signals
+2. **Analyze** posts to detect hiring intent and business pain points
+3. **Enrich** lead profiles with AI-powered insights
+4. **Execute** personalized outreach across Email, LinkedIn, and WhatsApp
 
-### Verify Installation
-
-Open your terminal (Git Bash or Command Prompt) and run:
-
-```bash
-# Check Python version
-python --version
-# Should output: Python 3.11.x
-
-# Check Node.js version
-node --version
-# Should output: v18.x.x or higher
-
-# Check npm version
-npm --version
-# Should output: 9.x.x or higher
-
-# Check Git version
-git --version
-# Should output: git version x.x.x
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          SDR AGENT WORKFLOW                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────────┐      │
+│   │ DISCOVER │ ──► │ ANALYZE  │ ──► │  ENRICH  │ ──► │   OUTREACH   │      │
+│   └──────────┘     └──────────┘     └──────────┘     └──────────────┘      │
+│                                                                             │
+│   • LinkedIn       • Hiring         • AI Profile     • Email Sequences     │
+│     Keyword          Signal           Analysis       • LinkedIn DMs        │
+│     Search           Detection      • Contact        • WhatsApp            │
+│   • Post           • Pain Point       Extraction       Templates           │
+│     Scraping         Analysis       • Company                              │
+│                                       Mapping                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📥 Clone the Repository
+## ✨ Key Features
 
-### Using Git Bash
+### 🔍 LinkedIn Signal Intelligence
+- **Keyword-based Search**: Find leads posting about specific topics
+- **Hiring Signal Detection**: AI identifies job postings vs. thought leadership
+- **Pain Point Analysis**: Extract business challenges from posts
+- **Personalized DM Generation**: AI crafts unique messages for each lead
+
+### 📧 Email Campaign Management
+- **Lead Verification**: ZeroBounce-powered email validation
+- **AI Enrichment**: Analyze LinkedIn profiles for personalization
+- **Multi-step Sequences**: 3-email sequences with custom subjects
+- **Instantly Integration**: Push leads directly to your cold email tool
+
+### 💬 WhatsApp Business Outreach
+- **WATI Integration**: Full API integration for WhatsApp Business
+- **Template Messaging**: Pre-approved WhatsApp templates
+- **Bulk Campaigns**: Job-based bulk sending with progress tracking
+- **Real-time Webhooks**: Message delivery & read status tracking
+
+### 🤖 AI-Powered Features (Google Gemini)
+- Industry-agnostic profile analysis
+- Hiring intent classification (with job seeker detection)
+- Personalized message generation
+- Rate-limited API calls with retry logic
+
+---
+
+## 🏗 System Architecture
+
+### High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                 CLIENT LAYER                                     │
+│  ┌────────────────────────────────────────────────────────────────────────────┐ │
+│  │                        Next.js 16 + React 19 Frontend                      │ │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐       │ │
+│  │  │  LinkedIn   │  │   Campaign  │  │  WhatsApp   │  │ Enrichment  │       │ │
+│  │  │   Signals   │  │    Page     │  │   Outreach  │  │    Page     │       │ │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘       │ │
+│  └────────────────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────┬──────────────────────────────────────────┘
+                                       │ REST API
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                  API LAYER                                       │
+│  ┌────────────────────────────────────────────────────────────────────────────┐ │
+│  │                        FastAPI Backend (Python 3.11)                       │ │
+│  │  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐      │ │
+│  │  │  Signal Outreach  │  │   Email Outreach  │  │ WhatsApp Outreach │      │ │
+│  │  │      Module       │  │      Module       │  │      Module       │      │ │
+│  │  │                   │  │                   │  │                   │      │ │
+│  │  │ • /api/v1/search  │  │ • /api/v1/leads   │  │ • /api/v1/whatsapp│      │ │
+│  │  │ • /api/v1/leads   │  │ • /api/v1/enrich  │  │   /leads          │      │ │
+│  │  │ • /api/v1/unipile │  │ • /api/v1/verify  │  │   /templates      │      │ │
+│  │  └───────────────────┘  └───────────────────┘  └───────────────────┘      │ │
+│  └────────────────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────┬──────────────────────────────────────────┘
+                                       │
+           ┌───────────────────────────┼───────────────────────────┐
+           ▼                           ▼                           ▼
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│  EXTERNAL APIs   │       │    DATABASE      │       │   AI SERVICES    │
+│                  │       │                  │       │                  │
+│ • Apify (Scrape) │       │  PostgreSQL      │       │ Google Gemini    │
+│ • Unipile (DM)   │       │  • Leads         │       │ • Post Analysis  │
+│ • WATI (WhatsApp)│       │  • Activities    │       │ • DM Generation  │
+│ • ZeroBounce     │       │  • Messages      │       │ • Hiring Signal  │
+│ • Instantly      │       │  • Bulk Jobs     │       │   Detection      │
+└──────────────────┘       └──────────────────┘       └──────────────────┘
+```
+
+### Data Flow Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        LINKEDIN SIGNAL FLOW                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  User Input          Apify Scraper         AI Analysis         Database    │
+│  ─────────           ────────────          ───────────         ────────    │
+│                                                                             │
+│  Keywords ────►  Scrape LinkedIn  ────►  Gemini AI  ────►  Save Lead       │
+│  "hiring SDR"        Posts              • Hiring Signal     with:          │
+│  "looking for"                          • Pain Points       • AI Analysis  │
+│                                         • Generate DM       • Post Data    │
+│                                                             • DM Template  │
+│                                                                             │
+│                            ┌─────────────────────────────────┐             │
+│                            │     OUTREACH EXECUTION          │             │
+│                            │                                 │             │
+│                            │  ┌─────────┐    ┌─────────┐    │             │
+│                            │  │Unipile  │    │ WATI    │    │             │
+│                            │  │LinkedIn │    │WhatsApp │    │             │
+│                            │  │   DM    │    │Template │    │             │
+│                            │  └─────────┘    └─────────┘    │             │
+│                            └─────────────────────────────────┘             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Module Interaction Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       CROSS-MODULE DATA FLOW                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌───────────────────┐                                                      │
+│  │  EMAIL OUTREACH   │                                                      │
+│  │    MODULE         │                                                      │
+│  │                   │──────┐                                               │
+│  │  • Email Leads    │      │  Import Leads                                 │
+│  │  • Mobile Numbers │      │  with Mobile Numbers                          │
+│  │  • Company Info   │      │                                               │
+│  └───────────────────┘      │                                               │
+│                             ▼                                               │
+│  ┌───────────────────┐    ┌───────────────────┐                            │
+│  │ LINKEDIN SIGNALS  │    │ WHATSAPP OUTREACH │                            │
+│  │    MODULE         │───►│     MODULE        │                            │
+│  │                   │    │                   │                            │
+│  │  • LinkedIn Leads │    │  • WhatsApp Leads │                            │
+│  │  • DM Templates   │    │  • Template Msgs  │                            │
+│  │  • Hiring Signals │    │  • Bulk Jobs      │                            │
+│  └───────────────────┘    └───────────────────┘                            │
+│                                                                             │
+│  ──────────────────────────────────────────────────────────────────────    │
+│                      SHARED COMPONENTS                                      │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐                │
+│  │   PostgreSQL   │  │    Caching     │  │   Correlation  │                │
+│  │    Database    │  │    Layer       │  │   ID Logging   │                │
+│  └────────────────┘  └────────────────┘  └────────────────┘                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📦 Module Deep Dive
+
+### 1. LinkedIn Signal Outreach Module
+
+**Purpose**: Discover leads actively posting about relevant topics and engage via personalized LinkedIn DMs.
+
+#### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Keyword Search** | Search LinkedIn posts by multiple keywords with date filtering |
+| **Hiring Signal Detection** | AI distinguishes between job posters vs. job seekers |
+| **Pain Point Analysis** | Extract business challenges from post content |
+| **DM Generation** | AI creates personalized connection messages |
+| **Connection Requests** | Send connection requests via Unipile API |
+| **Direct Messages** | Send DMs to connected leads |
+| **Bulk Operations** | Process multiple leads with rate limiting |
+| **Activity Tracking** | Full audit trail of all outreach actions |
+
+#### AI Analysis Pipeline
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                  HIRING SIGNAL DETECTION                            │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  INPUT: LinkedIn Post                                              │
+│  ─────────────────────                                             │
+│  "We're hiring! Looking for experienced React developers           │
+│   to join our Mumbai team. Apply: jobs@company.com"               │
+│                                                                    │
+│                         ▼                                          │
+│  ┌────────────────────────────────────────┐                       │
+│  │  STEP 1: Keyword Pre-Detection         │                       │
+│  │  • Scan for hiring phrases             │                       │
+│  │  • Detect job seeker phrases           │                       │
+│  │  • Extract emails/phones via regex     │                       │
+│  └────────────────────────────────────────┘                       │
+│                         ▼                                          │
+│  ┌────────────────────────────────────────┐                       │
+│  │  STEP 2: Gemini AI Analysis            │                       │
+│  │  • Confirm hiring intent               │                       │
+│  │  • Extract roles being hired           │                       │
+│  │  • Identify company name               │                       │
+│  │  • Classify author persona             │                       │
+│  └────────────────────────────────────────┘                       │
+│                         ▼                                          │
+│  ┌────────────────────────────────────────┐                       │
+│  │  STEP 3: DM Generation                 │                       │
+│  │  • Reference specific post content     │                       │
+│  │  • Personalized to author's context    │                       │
+│  │  • Max 400 characters                  │                       │
+│  └────────────────────────────────────────┘                       │
+│                                                                    │
+│  OUTPUT:                                                           │
+│  ───────                                                           │
+│  {                                                                 │
+│    "hiring_signal": true,                                          │
+│    "hiring_roles": "React Developers",                             │
+│    "company_hiring": "Company Name",                               │
+│    "contact_email": "jobs@company.com",                            │
+│    "pain_points": "Scaling engineering team",                      │
+│    "linkedin_dm": "Hi [Name]! Saw you're expanding..."            │
+│  }                                                                 │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### Rate Limiting
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                    RATE LIMIT CONFIGURATION                         │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  GEMINI API TIERS:                                                 │
+│  ─────────────────                                                 │
+│  • FREE    : 5 req/min  → 13s delay between calls                 │
+│  • PAID    : 60 req/min → 2s delay, parallel processing           │
+│  • ENTERPRISE: 1000+ req/min → No delay                           │
+│                                                                    │
+│  LINKEDIN DAILY LIMITS:                                            │
+│  ──────────────────────                                            │
+│  • Connection Requests: 25/day (configurable)                      │
+│  • Direct Messages: 50/day (configurable)                          │
+│  • Bulk Delay: 3 seconds between operations                        │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/search` | POST | Search LinkedIn by keywords |
+| `/api/v1/leads` | GET | List all discovered leads |
+| `/api/v1/leads/{id}` | GET | Get lead details with AI analysis |
+| `/api/v1/leads/{id}/refresh` | POST | Re-run AI analysis |
+| `/api/v1/leads/bulk-refresh` | POST | Bulk re-analyze leads |
+| `/api/v1/leads/{id}/send-dm` | POST | Send DM to lead |
+| `/api/v1/leads/{id}/send-connection` | POST | Send connection request |
+| `/api/v1/bulk-send` | POST | Bulk send DMs/connections |
+| `/api/v1/rate-limits` | GET | Check daily limits |
+| `/api/v1/activities` | GET | Activity timeline |
+
+---
+
+### 2. Email Outreach & Campaign Module
+
+**Purpose**: Verify leads, enrich profiles with AI, and push to cold email campaigns.
+
+#### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Lead Verification** | Upload CSV/Excel files for email validation |
+| **ZeroBounce Integration** | Professional email verification API |
+| **Profile Scraping** | Scrape LinkedIn posts via Apify |
+| **AI Enrichment** | Analyze posts for personalization hooks |
+| **FATE Email System** | Generate multi-step email sequences |
+| **Instantly Integration** | Push leads directly to cold email tool |
+| **Bulk Operations** | Push multiple leads with auto-email generation |
+
+#### Lead Verification Flow
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                    LEAD VERIFICATION PIPELINE                       │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  ┌────────────┐     ┌────────────┐     ┌────────────┐             │
+│  │   Upload   │     │  Validate  │     │   Verify   │             │
+│  │   Excel    │────►│    File    │────►│   Emails   │             │
+│  └────────────┘     └────────────┘     └────────────┘             │
+│                                               │                    │
+│  Security Checks:                             ▼                    │
+│  • File extension (.xlsx, .csv)      ┌────────────────┐           │
+│  • MIME type validation              │  ZeroBounce    │           │
+│  • Magic number check                │  API Check     │           │
+│  • Size limit (10MB)                 └────────────────┘           │
+│                                               │                    │
+│                                               ▼                    │
+│                                      ┌────────────────┐           │
+│                                      │  Categorize:   │           │
+│                                      │  • Valid       │           │
+│                                      │  • Invalid     │           │
+│                                      │  • Catch-all   │           │
+│                                      └────────────────┘           │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### Email Enrichment Flow
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                    ENRICHMENT PIPELINE                              │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  ┌─────────────────┐                                               │
+│  │ 1. Check Cache  │  Reuse existing scraped data if available    │
+│  └────────┬────────┘                                               │
+│           │ Cache Miss                                             │
+│           ▼                                                        │
+│  ┌─────────────────┐                                               │
+│  │ 2. Apify Scrape │  Scrape latest 5 LinkedIn posts              │
+│  │    LinkedIn     │  • Post text                                  │
+│  │    Posts        │  • Author role                                │
+│  │                 │  • Post date                                  │
+│  └────────┬────────┘                                               │
+│           │                                                        │
+│           ▼                                                        │
+│  ┌─────────────────┐                                               │
+│  │ 3. Gemini AI    │  Industry-agnostic analysis:                 │
+│  │    Analysis     │  • Hiring signals                             │
+│  │                 │  • Key competencies                           │
+│  │                 │  • Pain points                                │
+│  │                 │  • Personalization hook                       │
+│  └────────┬────────┘                                               │
+│           │                                                        │
+│           ▼                                                        │
+│  ┌─────────────────┐                                               │
+│  │ 4. Generate     │  FATE system generates 3-email sequence      │
+│  │    Emails       │  with personalized hooks                      │
+│  └─────────────────┘                                               │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/verify-leads/` | POST | Upload & verify lead file |
+| `/api/v1/leads/` | GET | Get campaign-ready leads |
+| `/api/v1/leads/enrichment` | GET | Get leads needing enrichment |
+| `/api/v1/leads/{id}` | GET | Get lead details (lazy email gen) |
+| `/api/v1/leads/{id}/enrich` | POST | Trigger AI enrichment |
+| `/api/v1/leads/{id}/send` | POST | Push single lead to Instantly |
+| `/api/v1/leads/{id}/push-sequence` | POST | Push email sequence |
+| `/api/v1/leads/bulk-check` | POST | Check bulk eligibility |
+| `/api/v1/leads/bulk-push` | POST | Bulk push to Instantly |
+
+---
+
+### 3. WhatsApp Outreach Module
+
+**Purpose**: Engage leads via WhatsApp Business using WATI API with template messaging.
+
+#### Features
+
+| Feature | Description |
+|---------|-------------|
+| **WATI Integration** | Full WhatsApp Business API support |
+| **Template Management** | Use pre-approved WhatsApp templates |
+| **Lead Management** | Manual creation + import from other modules |
+| **Bulk Jobs** | Create, pause, resume, cancel bulk sends |
+| **Conversation History** | Full chat history per lead |
+| **Webhooks** | Real-time delivery/read status updates |
+| **Activity Timeline** | Comprehensive audit trail |
+
+#### WhatsApp Message Flow
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                  WHATSAPP OUTREACH FLOW                             │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  LEAD SOURCES:                                                     │
+│  ─────────────                                                     │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐             │
+│  │   Manual     │  │Import from   │  │Import from   │             │
+│  │   Entry      │  │Email Module  │  │LinkedIn Mod  │             │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘             │
+│         │                 │                 │                      │
+│         └────────────┬────┴─────────────────┘                      │
+│                      ▼                                             │
+│              ┌──────────────┐                                      │
+│              │  WhatsApp    │                                      │
+│              │  Leads DB    │                                      │
+│              └──────┬───────┘                                      │
+│                     │                                              │
+│         ┌───────────┼───────────┐                                  │
+│         ▼           ▼           ▼                                  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐                           │
+│  │  Single  │ │  Bulk    │ │  Bulk    │                           │
+│  │   Send   │ │  Check   │ │   Job    │                           │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘                           │
+│       │            │            │                                  │
+│       └────────────┼────────────┘                                  │
+│                    ▼                                               │
+│            ┌──────────────┐                                        │
+│            │   WATI API   │                                        │
+│            │  Send with   │                                        │
+│            │  Template    │                                        │
+│            └──────┬───────┘                                        │
+│                   │                                                │
+│                   ▼                                                │
+│            ┌──────────────┐                                        │
+│            │   Webhook    │  Status updates:                       │
+│            │   Handler    │  • Sent                                │
+│            │              │  • Delivered                           │
+│            │              │  • Read                                │
+│            │              │  • Failed                              │
+│            │              │  • Reply received                      │
+│            └──────────────┘                                        │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### Bulk Job Lifecycle
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                    BULK JOB STATE MACHINE                           │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│                      ┌──────────┐                                  │
+│                      │ PENDING  │                                  │
+│                      └────┬─────┘                                  │
+│                           │ /start                                 │
+│                           ▼                                        │
+│                      ┌──────────┐                                  │
+│       ┌─────────────►│ RUNNING  │◄─────────────┐                  │
+│       │              └────┬─────┘              │                   │
+│       │                   │                    │                   │
+│   /resume            ┌────┴────┐           /resume                │
+│       │              │         │              │                    │
+│       │         /pause      complete          │                    │
+│       │              │         │              │                    │
+│       │              ▼         ▼              │                    │
+│  ┌────┴─────┐   ┌──────────┐  ┌────────────┐ │                    │
+│  │  PAUSED  │   │COMPLETED │  │   FAILED   ├─┘                    │
+│  └────┬─────┘   └──────────┘  └────────────┘                      │
+│       │                                                            │
+│    /cancel                                                         │
+│       │                                                            │
+│       ▼                                                            │
+│  ┌──────────┐                                                      │
+│  │CANCELLED │                                                      │
+│  └──────────┘                                                      │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### Webhook Security
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                    WEBHOOK SECURITY LAYERS                          │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  Layer 1: IP Whitelist                                             │
+│  ─────────────────────                                             │
+│  • Configure WATI_WEBHOOK_ALLOWED_IPS in .env                      │
+│  • Only accept webhooks from WATI's IP range                       │
+│                                                                    │
+│  Layer 2: Secret Token                                             │
+│  ────────────────────                                              │
+│  • Configure WATI_WEBHOOK_SECRET in .env                           │
+│  • Validates X-Webhook-Secret or Authorization header              │
+│  • Constant-time comparison to prevent timing attacks              │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/whatsapp/config` | GET | Check WATI configuration |
+| `/api/v1/whatsapp/templates` | GET | Get available templates |
+| `/api/v1/whatsapp/leads` | GET | List WhatsApp leads |
+| `/api/v1/whatsapp/leads` | POST | Create new lead |
+| `/api/v1/whatsapp/leads/{id}` | GET/PUT/DELETE | Manage lead |
+| `/api/v1/whatsapp/leads/{id}/send` | POST | Send WhatsApp |
+| `/api/v1/whatsapp/leads/{id}/messages` | GET | Get chat history |
+| `/api/v1/whatsapp/bulk/jobs` | POST | Create bulk job |
+| `/api/v1/whatsapp/bulk/jobs/{id}/start` | POST | Start/resume job |
+| `/api/v1/whatsapp/bulk/jobs/{id}/pause` | POST | Pause job |
+| `/api/v1/whatsapp/import/email-leads` | POST | Import from email |
+| `/api/v1/whatsapp/import/linkedin-leads` | POST | Import from LinkedIn |
+| `/api/v1/whatsapp/webhook` | POST | WATI webhook handler |
+
+---
+
+## 🛠 Tech Stack
+
+### Backend
+
+| Technology | Purpose |
+|------------|---------|
+| **FastAPI** | High-performance async web framework |
+| **Python 3.11** | Modern Python with async support |
+| **SQLAlchemy** | Async ORM for database operations |
+| **PostgreSQL** | Primary database |
+| **Alembic** | Database migrations |
+| **Pydantic** | Data validation and settings management |
+
+### Frontend
+
+| Technology | Purpose |
+|------------|---------|
+| **Next.js 16** | React framework with App Router |
+| **React 19** | UI component library |
+| **TypeScript** | Type-safe JavaScript |
+| **Tailwind CSS** | Utility-first CSS framework |
+| **Lucide React** | Icon library |
+| **React Hot Toast** | Toast notifications |
+
+### External Services
+
+| Service | Purpose |
+|---------|---------|
+| **Google Gemini** | AI-powered analysis & DM generation |
+| **Apify** | LinkedIn post scraping |
+| **Unipile** | LinkedIn DM & connection API |
+| **WATI** | WhatsApp Business API |
+| **ZeroBounce** | Email verification |
+| **Instantly** | Cold email campaign tool |
+
+---
+
+## 📖 API Reference
+
+### Authentication
+
+All API endpoints currently use CORS-based authentication. Configure allowed origins in the backend `.env` file.
+
+### Response Format
+
+All endpoints return JSON responses:
+
+```json
+{
+  "success": true,
+  "message": "Operation completed",
+  "data": { ... }
+}
+```
+
+### Error Responses
+
+```json
+{
+  "detail": "Error message here"
+}
+```
+
+HTTP Status Codes:
+- `200` - Success
+- `400` - Bad Request (validation error)
+- `401` - Unauthorized
+- `404` - Not Found
+- `409` - Conflict (duplicate)
+- `413` - File Too Large
+- `429` - Rate Limited
+- `500` - Internal Server Error
+- `503` - Service Unavailable (external API down)
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+| Software | Version | Download |
+|----------|---------|----------|
+| **Python** | 3.11+ | [Download](https://www.python.org/downloads/) |
+| **Node.js** | 18+ LTS | [Download](https://nodejs.org/) |
+| **PostgreSQL** | 13+ | [Download](https://www.postgresql.org/download/) |
+| **Git** | Latest | [Download](https://git-scm.com/downloads) |
+
+### 1. Clone the Repository
+
 ```bash
-# Navigate to your desired directory
-cd /d/your-projects-folder
-
-# Clone the repository
 git clone https://github.com/Aiviue-product/sdr-agent.git
-
-# Navigate into the project
 cd sdr-agent
 ```
 
-### Using Windows Command Prompt (CMD)
-```cmd
-:: Navigate to your desired directory
-cd D:\your-projects-folder
+### 2. Backend Setup
 
-:: Clone the repository
-git clone https://github.com/Aiviue-product/sdr-agent.git
-
-:: Navigate into the project
-cd sdr-agent
-```
-
-### Using Windows PowerShell
-```powershell
-# Navigate to your desired directory
-cd D:\your-projects-folder
-
-# Clone the repository
-git clone https://github.com/Aiviue-product/sdr-agent.git
-
-# Navigate into the project
-cd sdr-agent
-```
-
----
-
-## ⚙️ Backend Setup
-
-The backend is built with **FastAPI** and requires Python 3.11.
-
-### Step 1: Create Virtual Environment
-
-First, navigate to the `backend` directory and create a virtual environment:
-
-#### Using Git Bash
 ```bash
-# Navigate to backend folder
+# Navigate to backend
 cd backend
 
-# Create virtual environment with Python 3.11
+# Create virtual environment
 python -m venv venv
-```
 
-#### Using Windows Command Prompt (CMD)
-```cmd
-:: Navigate to backend folder
-cd backend
-
-:: Create virtual environment with Python 3.11
-python -m venv venv
-```
-
-#### Using Windows PowerShell
-```powershell
-# Navigate to backend folder
-cd backend
-
-# Create virtual environment with Python 3.11
-python -m venv venv
-```
-
-> **Note:** If you have multiple Python versions installed, you might need to specify the Python 3.11 path:
-> ```bash
-> # Git Bash / PowerShell
-> py -3.11 -m venv venv
-> 
-> # Or specify full path
-> "C:\Users\YourUsername\AppData\Local\Programs\Python\Python311\python.exe" -m venv venv
-> ```
-
----
-
-### Step 2: Activate Virtual Environment
-
-#### Using Git Bash
-```bash
-# Activate the virtual environment
+# Activate (Windows Git Bash)
 source venv/Scripts/activate
-```
 
-#### Using Windows Command Prompt (CMD)
-```cmd
-:: Activate the virtual environment
-venv\Scripts\activate.bat
-```
+# Activate (Mac/Linux)
+source venv/bin/activate
 
-#### Using Windows PowerShell
-```powershell
-# Activate the virtual environment
-.\venv\Scripts\Activate.ps1
-```
-
-> **PowerShell Execution Policy Error?** If you get an error about execution policy, run this first:
-> ```powershell
-> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-> ```
-
-After activation, you should see `(venv)` at the beginning of your terminal prompt:
-```
-(venv) user@computer:~/sdr-agent/backend$
-```
-
----
-
-### Step 3: Install Dependencies
-
-With the virtual environment activated, install all required Python packages:
-
-```bash
-# Install all dependencies from requirements.txt
+# Install dependencies
 pip install -r requirements.txt
-```
 
-This will install the following packages:
-- `fastapi` - Modern web framework for building APIs
-- `uvicorn` - ASGI server to run FastAPI
-- `pandas` - Data manipulation library
-- `requests` - HTTP library
-- `openpyxl` - Excel file handling
-- `python-multipart` - File upload support
-- `pydantic-settings` - Settings management
-- `python-dotenv` - Environment variable management
-- `sqlalchemy` - Database ORM
-- `asyncpg` - Async PostgreSQL driver
-- `psycopg2-binary` - PostgreSQL adapter
-- `apify-client` - Apify API client
-- `google-genai` - Google Gemini AI integration
-- `pytest-asyncio` - Async testing support
-
----
-
-### Step 4: Configure Environment Variables
-
-You need to set up environment variables for the backend to work properly.
-
-#### 4.1 Create the `.env` file
-
-**Using Git Bash:**
-```bash
-# Copy the example file
+# Copy environment file
 cp .env.example .env
-```
 
-**Using Windows Command Prompt (CMD):**
-```cmd
-:: Copy the example file
-copy .env.example .env
-```
+# Edit .env with your API keys (see Configuration section)
 
-**Using Windows PowerShell:**
-```powershell
-# Copy the example file
-Copy-Item .env.example .env
-```
+# Run database migrations
+alembic upgrade head
 
-#### 4.2 Edit the `.env` file
-
-Open the `.env` file with any text editor (VS Code, Notepad++, etc.) and fill in your actual values:
-
-```env
-PROJECT_NAME="Lead Verification API"
-API_V1_STR="/api/v1"
-CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
-
-# Apify Token - Get from https://console.apify.com/account/integrations
-APIFY_TOKEN=your_actual_apify_token_here
-
-# ZeroBounce API Key - Get from https://www.zerobounce.net/
-ZEROBOUNCE_API_KEY=your_actual_zerobounce_key_here
-
-# Google Gemini API Key - Get from https://aistudio.google.com/app/apikey
-GEMINI_API_KEY=your_actual_gemini_api_key_here
-
-# PostgreSQL Database URL
-DATABASE_URL=postgresql://username:password@localhost:5432/your_database_name
-
-# Unipile LinkedIn DM API - Get from https://dashboard.unipile.com
-UNIPILE_API_KEY=your_unipile_api_key_here
-UNIPILE_DSN=https://api16.unipile.com:14612
-UNIPILE_ACCOUNT_ID=your_unipile_account_id_here
-```
-
-#### Where to Get API Keys:
-
-| Service | Purpose | Get Key From |
-|---------|---------|--------------|
-| **Apify** | Web scraping & data extraction | [Apify Console](https://console.apify.com/account/integrations) |
-| **ZeroBounce** | Email verification | [ZeroBounce Dashboard](https://www.zerobounce.net/) |
-| **Google Gemini** | AI-powered enrichment | [Google AI Studio](https://aistudio.google.com/app/apikey) |
-| **Unipile** | LinkedIn DM messaging | [Unipile Dashboard](https://dashboard.unipile.com) |
-
-> ⚠️ **Security Warning:** Never commit your `.env` file to Git! It's already in `.gitignore` for safety.
-
----
-
-### Step 5: Run the Backend Server
-
-With everything configured, start the FastAPI backend server:
-
-```bash
-# Make sure you're in the backend directory with venv activated
-# Run the development server
+# Start the server
 uvicorn app.main:app --reload
 ```
 
-You should see output like:
-```
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [xxxxx]
-INFO:     Started server process [xxxxx]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-```
+### 3. Frontend Setup
 
-#### Backend URLs:
-- **API Base URL:** http://localhost:8000
-- **Interactive API Docs (Swagger):** http://localhost:8000/docs
-- **Alternative API Docs (ReDoc):** http://localhost:8000/redoc
-
-> 💡 **Tip:** Keep this terminal running while you set up the frontend in a new terminal window!
-
----
-
-## 🎨 Frontend Setup
-
-The frontend is built with **Next.js 16** and **React 19**.
-
-### Step 1: Navigate to Client Directory
-
-Open a **new terminal window** (keep the backend running!) and navigate to the client folder:
-
-#### Using Git Bash
 ```bash
-# From the project root
+# Open new terminal, navigate to frontend
 cd client/client
-```
 
-#### Using Windows Command Prompt (CMD)
-```cmd
-:: From the project root
-cd client\client
-```
-
-#### Using Windows PowerShell
-```powershell
-# From the project root
-cd client\client
-```
-
----
-
-### Step 2: Install Node Dependencies
-
-Install all required npm packages:
-
-```bash
 # Install dependencies
 npm install
-```
 
-This will install:
-- `next` - React framework
-- `react` & `react-dom` - UI library
-- `lucide-react` - Icon library
-- `tailwindcss` - CSS framework
-- And other development dependencies
-
-> ⏳ This might take a few minutes depending on your internet connection.
-
----
-
-### Step 3: Configure Frontend Environment (Optional)
-
-If you need to customize the backend API URL, create a `.env.local` file:
-
-```bash
-# Create environment file
-echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
-```
-
-Or manually create `.env.local` with:
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
----
-
-### Step 4: Run the Frontend Server
-
-Start the Next.js development server:
-
-```bash
-# Run the development server
+# Start development server
 npm run dev
 ```
 
-You should see output like:
-```
-   ▲ Next.js 16.0.10
-   - Local:        http://localhost:3000
-   - Network:      http://192.168.x.x:3000
-
- ✓ Starting...
- ✓ Ready in xxxms
-```
-
----
-
-## 🌐 Access the Application
-
-Once both servers are running, open your browser and navigate to:
+### 4. Access the Application
 
 | Service | URL |
 |---------|-----|
-| **Frontend (Main App)** | [http://localhost:3000](http://localhost:3000) |
-| **Backend API** | [http://localhost:8000](http://localhost:8000) |
-| **API Documentation** | [http://localhost:8000/docs](http://localhost:8000/docs) |
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| API Docs (Swagger) | http://localhost:8000/docs |
+| API Docs (ReDoc) | http://localhost:8000/redoc |
+
+---
+
+## ⚙️ Configuration
+
+### Backend Environment Variables (.env)
+
+```env
+# ============================================
+# APPLICATION
+# ============================================
+PROJECT_NAME="SDR Agent API"
+API_V1_STR="/api/v1"
+CORS_ORIGIN="http://localhost:3000"
+
+# ============================================
+# DATABASE
+# ============================================
+DATABASE_URL=postgresql://user:password@localhost:5432/sdr_agent
+
+# ============================================
+# AI SERVICES
+# ============================================
+# Google Gemini - https://aistudio.google.com/app/apikey
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_TIER=free  # free | paid | enterprise
+
+# ============================================
+# LEAD VERIFICATION
+# ============================================
+# ZeroBounce - https://www.zerobounce.net/
+ZEROBOUNCE_API_KEY=your_zerobounce_key
+
+# ============================================
+# LINKEDIN INTEGRATION
+# ============================================
+# Apify - https://console.apify.com/account/integrations
+APIFY_TOKEN=your_apify_token
+
+# Unipile - https://dashboard.unipile.com
+UNIPILE_API_KEY=your_unipile_key
+UNIPILE_DSN=https://api16.unipile.com:14612
+UNIPILE_ACCOUNT_ID=your_account_id
+UNIPILE_WEBHOOK_SECRET=optional_webhook_secret
+
+# ============================================
+# WHATSAPP INTEGRATION
+# ============================================
+# WATI - https://app.wati.io/
+WATI_API_KEY=your_wati_api_key
+WATI_BASE_URL=https://live-server-12345.wati.io
+WATI_CHANNEL_NUMBER=919876543210
+WATI_WEBHOOK_SECRET=optional_webhook_secret
+WATI_WEBHOOK_ALLOWED_IPS=  # Comma-separated, empty = allow all
+
+# ============================================
+# EMAIL CAMPAIGN
+# ============================================
+# Instantly - https://instantly.ai/
+INSTANTLY_API_KEY=your_instantly_key
+INSTANTLY_CAMPAIGN_ID=your_campaign_id
+```
+
+### API Key Sources
+
+| Service | Where to Get | Purpose |
+|---------|--------------|---------|
+| **Gemini** | [Google AI Studio](https://aistudio.google.com/app/apikey) | AI analysis & DM generation |
+| **ZeroBounce** | [Dashboard](https://www.zerobounce.net/) | Email verification |
+| **Apify** | [Console](https://console.apify.com/account/integrations) | LinkedIn scraping |
+| **Unipile** | [Dashboard](https://dashboard.unipile.com) | LinkedIn DMs & connections |
+| **WATI** | [App Settings](https://app.wati.io/) | WhatsApp Business messaging |
+| **Instantly** | [Dashboard](https://app.instantly.ai/) | Cold email campaigns |
 
 ---
 
@@ -407,80 +774,152 @@ Once both servers are running, open your browser and navigate to:
 
 ```
 sdr-agent/
-├── backend/                    # FastAPI Backend
-│   ├── app/                    # Application code
-│   │   ├── api/               # API routes
-│   │   │   └── v1/            # API version 1 endpoints
-│   │   ├── core/              # Core configurations
-│   │   ├── models/            # Database models
-│   │   ├── services/          # Business logic
-│   │   └── main.py            # App entry point
-│   ├── tests/                  # Test files
-│   ├── scripts/                # Utility scripts
-│   ├── .env                    # Environment variables (create from .env.example)
-│   ├── .env.example            # Example environment file
-│   ├── requirements.txt        # Python dependencies
-│   └── venv/                   # Virtual environment (created by you)
+├── backend/
+│   ├── app/
+│   │   ├── main.py                    # FastAPI entry point
+│   │   ├── modules/
+│   │   │   ├── email_outreach/        # Email/Campaign module
+│   │   │   │   ├── api/
+│   │   │   │   │   ├── endpoints.py   # File upload verification
+│   │   │   │   │   ├── leads.py       # Lead management
+│   │   │   │   │   └── enrichment.py  # AI enrichment
+│   │   │   │   ├── models/
+│   │   │   │   ├── repositories/
+│   │   │   │   └── services/
+│   │   │   │       ├── intelligence_service.py  # AI analysis
+│   │   │   │       ├── scraper_service.py       # Apify integration
+│   │   │   │       ├── fate_service.py          # Email generation
+│   │   │   │       └── instantly_service.py     # Instantly API
+│   │   │   │
+│   │   │   ├── signal_outreach/       # LinkedIn signals module
+│   │   │   │   ├── api/
+│   │   │   │   │   ├── endpoints.py   # Search & leads
+│   │   │   │   │   ├── unipile_endpoints.py  # DM & connections
+│   │   │   │   │   └── schemas.py
+│   │   │   │   ├── models/
+│   │   │   │   ├── repositories/
+│   │   │   │   └── services/
+│   │   │   │       ├── linkedin_intelligence_service.py  # AI analysis
+│   │   │   │       ├── linkedin_search_service.py        # Apify search
+│   │   │   │       ├── linkedin_outreach_service.py      # Orchestration
+│   │   │   │       └── unipile_service.py                # Unipile API
+│   │   │   │
+│   │   │   └── whatsapp_outreach/     # WhatsApp module
+│   │   │       ├── api/
+│   │   │       │   └── whatsapp_endpoints.py
+│   │   │       ├── models/
+│   │   │       ├── repositories/
+│   │   │       ├── schemas/
+│   │   │       └── services/
+│   │   │           ├── whatsapp_service.py   # Orchestration
+│   │   │           └── wati_client.py        # WATI API client
+│   │   │
+│   │   └── shared/
+│   │       ├── core/
+│   │       │   ├── config.py          # Settings management
+│   │       │   ├── constants.py       # App constants
+│   │       │   └── logging.py         # Logging setup
+│   │       ├── db/
+│   │       │   ├── base.py            # SQLAlchemy base
+│   │       │   └── session.py         # DB session
+│   │       ├── middleware/
+│   │       │   └── correlation.py     # Request ID tracking
+│   │       └── utils/
+│   │           ├── cache.py           # In-memory caching
+│   │           └── http_client.py     # Shared HTTP client
+│   │
+│   ├── migrations/                    # Alembic migrations
+│   ├── tests/                         # Pytest test suite
+│   ├── requirements.txt
+│   └── .env.example
 │
-├── client/
-│   └── client/                 # Next.js Frontend
-│       ├── src/               # Source code
-│       │   ├── app/           # Next.js app router pages
-│       │   └── components/    # React components
-│       ├── public/            # Static assets
-│       ├── package.json       # Node dependencies
-│       └── .env.local         # Frontend environment (optional)
+├── client/client/
+│   ├── src/
+│   │   ├── app/                       # Next.js App Router
+│   │   │   ├── page.tsx               # Home page
+│   │   │   ├── campaign/page.tsx      # Campaign page
+│   │   │   ├── linkedin-signals/page.tsx
+│   │   │   ├── whatsapp/page.tsx
+│   │   │   ├── enrichment/page.tsx
+│   │   │   └── masterleads/page.tsx
+│   │   ├── pages/                     # Page components
+│   │   │   ├── LinkedInSignalsPage.tsx
+│   │   │   ├── WhatsAppOutreachPage.tsx
+│   │   │   └── EnrichmentPage.tsx
+│   │   ├── components/
+│   │   │   ├── linkedin/              # LinkedIn components
+│   │   │   │   ├── LeadsList.tsx
+│   │   │   │   ├── LeadDetailPanel.tsx
+│   │   │   │   ├── ActivityModal.tsx
+│   │   │   │   └── ...
+│   │   │   └── whatsapp/              # WhatsApp components
+│   │   │       ├── WhatsAppLeadsList.tsx
+│   │   │       ├── WhatsAppDetailPanel.tsx
+│   │   │       └── ...
+│   │   ├── hooks/                     # Custom React hooks
+│   │   ├── services/                  # API service layers
+│   │   └── types/                     # TypeScript types
+│   ├── package.json
+│   └── tsconfig.json
 │
-└── README.md                   # This file!
+└── README.md
 ```
+
+---
+
+## 📸 Screenshots
+
+### LinkedIn Signals Dashboard
+<img width="1255" height="818" alt="LinkedIn Signals UI" src="https://github.com/user-attachments/assets/4a316ed5-33d7-434d-816c-f2b62ed64cf6" />
+
+### Output Excel (Verified Leads)
+<img width="1498" height="515" alt="Output Excel" src="https://github.com/user-attachments/assets/f25170de-3d09-4846-b320-fa7cd46857b3" />
 
 ---
 
 ## 🔧 Troubleshooting
 
-### Common Issues & Solutions
+### Common Issues
 
-#### 1. "python is not recognized as an internal or external command"
+#### 1. Database Connection Error
 
-**Solution:** Python is not in your PATH. Try these:
 ```bash
-# Use 'py' instead of 'python' on Windows
-py -3.11 --version
+# Check PostgreSQL is running
+pg_isready -h localhost -p 5432
 
-# Or add Python to PATH during installation
-# Re-install Python and check "Add Python to PATH"
+# Verify DATABASE_URL format
+# postgresql://username:password@localhost:5432/database_name
 ```
 
-#### 2. Virtual environment activation fails in Git Bash
+#### 2. CORS Errors
 
-**Solution:** Use the correct activation path:
+Ensure `CORS_ORIGIN` in backend `.env` matches your frontend URL:
+```env
+CORS_ORIGIN=http://localhost:3000
+```
+
+#### 3. Gemini Rate Limiting (429 Errors)
+
+```env
+# Use free tier settings
+GEMINI_TIER=free
+# Or upgrade your API tier
+GEMINI_TIER=paid
+```
+
+#### 4. Virtual Environment Activation (Windows)
+
 ```bash
-# Correct path for Git Bash on Windows
+# Git Bash
 source venv/Scripts/activate
 
-# NOT this (Linux/Mac style)
-source venv/bin/activate
-```
-
-#### 3. PowerShell script execution disabled
-
-**Solution:** Enable script execution:
-```powershell
+# PowerShell (if execution policy error)
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+.\venv\Scripts\Activate.ps1
 ```
 
-#### 4. npm install fails
+#### 5. Port Already in Use
 
-**Solution:** Clear npm cache and retry:
-```bash
-npm cache clean --force
-rm -rf node_modules package-lock.json
-npm install
-```
-
-#### 5. Port 8000 or 3000 already in use
-
-**Solution:** Kill the existing process or use a different port:
 ```bash
 # Run backend on different port
 uvicorn app.main:app --reload --port 8001
@@ -489,36 +928,39 @@ uvicorn app.main:app --reload --port 8001
 npm run dev -- -p 3001
 ```
 
-#### 6. Database connection error
+#### 6. Migration Issues
 
-**Solution:** Make sure your PostgreSQL database is running and the `DATABASE_URL` in `.env` is correct:
-```env
-DATABASE_URL=postgresql://username:password@localhost:5432/database_name
-```
+```bash
+# Generate new migration
+alembic revision --autogenerate -m "description"
 
-#### 7. CORS errors in browser
+# Apply all migrations
+alembic upgrade head
 
-**Solution:** Make sure the frontend URL is in the `CORS_ORIGINS` in your backend `.env`:
-```env
-CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+# Downgrade one step
+alembic downgrade -1
 ```
 
 ---
 
-## 📞 Need Help?
+## 📄 License
 
-If you encounter any issues not covered here:
+This project is proprietary software owned by Aiviue.
 
-1. Check the existing [Issues](https://github.com/Aiviue-product/sdr-agent/issues) on GitHub
+---
+
+## 🤝 Support
+
+For support and issues:
+1. Check [existing issues](https://github.com/Aiviue-product/sdr-agent/issues)
 2. Create a new issue with:
-   - Your operating system
+   - Operating system
    - Python and Node.js versions
    - Complete error message
    - Steps to reproduce
 
 ---
 
-## 🎉 You're All Set!
-
-Once both servers are running, you can start using the SDR Agent application. Happy coding! 🚀
- 
+<div align="center">
+Built with ❤️ by the Aiviue Team
+</div>
