@@ -893,13 +893,15 @@ sdr-agent/
 ## 📸 Screenshots
 
 ### 🏠 Home Page - Lead Verification
-<!-- Add screenshot here -->
+<img width="1892" height="862" alt="{89D60D25-1FA6-453F-85F6-4F834E0529FC}" src="https://github.com/user-attachments/assets/4962f905-b824-4edd-ac1a-170fc0650dca" />
+
 
 
 ---
 
-### 📧 Campaign Management Page
-<!-- Add screenshot here -->
+### 📧 Email outreach module 
+<img width="1915" height="874" alt="{677B36F3-B7F9-4768-AC33-F1B1A3943503}" src="https://github.com/user-attachments/assets/a1b34269-ae52-4f33-b544-4b74bf82fe37" />
+
 
 
 ---
@@ -907,15 +909,12 @@ sdr-agent/
 ### 🔗 LinkedIn Signals Module
 
 #### LinkedIn Search & Leads List
-<!-- Add screenshot here -->
-
-
-#### LinkedIn Lead Detail Panel
-<!-- Add screenshot here -->
+<img width="1920" height="865" alt="{DAE4DC94-26F7-4E3F-BB71-BD3D1A78C28F}" src="https://github.com/user-attachments/assets/ac81fec7-3717-482a-9866-a3d363b5105d" />
 
 
 #### LinkedIn Activity Timeline
-<!-- Add screenshot here -->
+<img width="1428" height="841" alt="{74EBD5F2-4441-4525-8FCA-AFB5FB3545A5}" src="https://github.com/user-attachments/assets/a1f67977-2e0e-4b7f-a087-de4c9be3db40" />
+
 
 
 ---
@@ -923,33 +922,22 @@ sdr-agent/
 ### 💬 WhatsApp Outreach Module
 
 #### WhatsApp Leads Dashboard
-<!-- Add screenshot here -->
+<img width="1910" height="876" alt="{25C1668C-CB03-4AE6-88DC-9B9F28D02C5F}" src="https://github.com/user-attachments/assets/a36b5288-8965-4f11-bc68-bbc2ea48bf55" />
+
 
 
 #### WhatsApp Conversation View
-<!-- Add screenshot here -->
+<img width="697" height="779" alt="{7BE03752-96EF-4A78-AD8E-D1440B781EF9}" src="https://github.com/user-attachments/assets/741f1a96-d3ce-4f49-beb4-3401791e5838" />
 
-
-#### WhatsApp Bulk Job Modal
-<!-- Add screenshot here -->
-
-
----
-
-### ✨ Enrichment Page
-<!-- Add screenshot here -->
 
 
 ---
 
 ### 📊 Master Leads Page
-<!-- Add screenshot here -->
+<img width="1872" height="871" alt="{5759E7E3-24E2-4116-9F2F-E0B43B1B1B96}" src="https://github.com/user-attachments/assets/77be7a2b-dd33-4468-a086-e0b0607f329f" />
 
 
----
 
-### 📋 Output Excel (Verified Leads)
-<!-- Add screenshot here -->
 
 
 ---
