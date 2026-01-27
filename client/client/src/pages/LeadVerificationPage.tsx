@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
 import { FileUploader } from '../components/FileUploader';
 import { verifyLeads } from '../services/email-verification/api';
-import { ApiError } from '../types/types';
+import { ApiError } from '../types/email-outreach/types';
 
 export const LeadVerificationPage = () => {
     const router = useRouter();
@@ -111,6 +111,13 @@ export const LeadVerificationPage = () => {
                         <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-stone-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                             <Search className="w-4 h-4" />
                             LinkedIn Signals
+                        </button>
+                    </Link>
+
+                    <Link href="/whatsapp">
+                        <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-stone-700 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                            📱
+                            WhatsApp
                         </button>
                     </Link>
                 </div>

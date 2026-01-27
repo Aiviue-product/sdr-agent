@@ -34,7 +34,7 @@ import {
 } from '../services/campaign-service/api';
 
 import { EMAIL_CARD_COLORS, MAX_BULK_SELECT_LIMIT } from '../constants';
-import { ApiError, BulkCheckResponse, BulkPushResponse, EmailCardProps, Lead } from "../types/types";
+import { ApiError, BulkCheckResponse, BulkPushResponse, EmailCardProps, Lead } from "../types/email-outreach/types";
 
 export default function CampaignPage() {
     const [leads, setLeads] = useState<Lead[]>([]);

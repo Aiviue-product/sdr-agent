@@ -38,6 +38,7 @@ class LinkedInLead(Base):
     linkedin_url = Column(Text, unique=True, nullable=False)  # Profile URL (dedup key)
     headline = Column(Text, nullable=True)            # Author headline from LinkedIn
     profile_image_url = Column(Text, nullable=True)   # Author image URL
+    mobile_number = Column(Text, nullable=True)       # Enriched phone number for WhatsApp
     
     # ============================================
     # SEARCH CONTEXT
@@ -70,6 +71,13 @@ class LinkedInLead(Base):
     follow_up_count = Column(BigInteger, default=0)   # How many follow-ups sent
     next_follow_up_at = Column(DateTime(timezone=True), nullable=True)  # Next scheduled
     last_reply_at = Column(DateTime(timezone=True), nullable=True)  # When they replied
+    
+    # ============================================
+    # OPTIMISTIC LOCKING
+    # ============================================
+    # Version column for optimistic locking - prevents lost updates from race conditions.
+    # Increments on every update. Updates check version to ensure no concurrent modification.
+    version = Column(BigInteger, default=1, nullable=False, server_default='1')
     
     # ============================================
     # TIMESTAMPS

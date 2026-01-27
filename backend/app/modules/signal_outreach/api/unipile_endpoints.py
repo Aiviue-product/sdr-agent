@@ -4,13 +4,21 @@ Handles sending DMs, connection requests, and managing LinkedIn outreach.
 """
 import logging
 import asyncio
+import hmac
 from typing import Optional
 from datetime import datetime, date
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
+from app.shared.core.config import settings
+
 from app.shared.db.session import get_db
+from app.shared.utils.cache import (
+    app_cache,
+    CACHE_TTL_RATE_LIMITS,
+    get_rate_limits_cache_key
+)
 from app.shared.core.constants import (
     LINKEDIN_DAILY_CONNECTION_LIMIT,
     LINKEDIN_DAILY_DM_LIMIT,
@@ -19,6 +27,7 @@ from app.shared.core.constants import (
 from app.modules.signal_outreach.models.linkedin_lead import LinkedInLead
 from app.modules.signal_outreach.models.linkedin_activity import LinkedInActivity
 from app.modules.signal_outreach.services.unipile_service import unipile_service
+from app.modules.signal_outreach.services.linkedin_outreach_service import LinkedInOutreachService
 from app.modules.signal_outreach.api.schemas import (
     SendDMRequest,
     SendDMResponse,
@@ -36,11 +45,51 @@ logger = logging.getLogger("unipile_api")
 
 
 # ============================================
+# WEBHOOK SECURITY
+# ============================================
+
+def verify_webhook_auth(auth_header: str, secret: str) -> bool:
+    """
+    Verify the Unipile webhook authentication header.
+    
+    Unipile sends a custom 'Unipile-Auth' header with the secret value.
+    We compare this against our configured secret.
+    
+    Args:
+        auth_header: Value from Unipile-Auth header
+        secret: Our configured webhook secret
+        
+    Returns:
+        True if authentication is valid, False otherwise
+    """
+    if not secret:
+        # If no secret configured, skip verification (backward compatible)
+        return True
+    
+    if not auth_header:
+        logger.warning("⚠️ Webhook received without Unipile-Auth header")
+        return False
+    
+    # Use constant-time comparison to prevent timing attacks
+    return hmac.compare_digest(auth_header, secret)
+
+
+# ============================================
 # HELPER FUNCTIONS
 # ============================================
 
 async def get_daily_counts(db: AsyncSession) -> dict:
-    """Get today's connection and DM counts."""
+    """
+    Get today's connection and DM counts.
+    CACHED for 30 seconds to reduce DB load.
+    """
+    cache_key = get_rate_limits_cache_key()
+    
+    # Try cache first
+    cached = app_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    
     today = date.today()
     
     # Count connections sent today
@@ -65,10 +114,15 @@ async def get_daily_counts(db: AsyncSession) -> dict:
     )
     dms_today = dms_result.scalar() or 0
     
-    return {
+    result = {
         "connections_today": connections_today,
         "dms_today": dms_today
     }
+    
+    # Cache the result
+    app_cache.set(cache_key, result, ttl_seconds=CACHE_TTL_RATE_LIMITS)
+    
+    return result
 
 
 async def create_activity(
@@ -128,13 +182,6 @@ async def send_dm_to_lead(
 ):
     """
     Send a DM to a lead.
-    
-    Flow:
-    1. Check if lead exists
-    2. Get provider_id if not already stored
-    3. Check connection status
-    4. If connected, send DM
-    5. If not connected, return error (use send-connection first)
     """
     if not unipile_service.is_configured():
         raise HTTPException(status_code=503, detail="Unipile service not configured")
@@ -149,87 +196,37 @@ async def send_dm_to_lead(
             error=f"You've reached the daily limit of {LINKEDIN_DAILY_DM_LIMIT} DMs"
         )
     
-    # Get lead from database
-    result = await db.execute(select(LinkedInLead).where(LinkedInLead.id == lead_id))
-    lead = result.scalar_one_or_none()
-    
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead not found")
-    
-    # Get or fetch provider_id
-    provider_id = lead.provider_id
-    if not provider_id:
-        profile_result = await unipile_service.get_profile(lead.linkedin_url)
-        if not profile_result.get("success"):
+    try:
+        service = LinkedInOutreachService(db)
+        result = await service.send_dm_to_lead(
+            lead_id=lead_id,
+            custom_message=request.message if request else None
+        )
+        
+        if result["success"]:
+            # Invalidate rate limits cache since count changed
+            app_cache.invalidate(get_rate_limits_cache_key())
+            return SendDMResponse(
+                success=True,
+                message=result["message"],
+                lead_id=lead_id,
+                dm_status="sent",
+                sent_at=result.get("sent_at")
+            )
+        else:
             return SendDMResponse(
                 success=False,
-                message="Failed to get provider ID",
+                message=result["message"] if "message" in result else "Failed to send DM",
                 lead_id=lead_id,
-                error=profile_result.get("error")
+                error=result.get("error")
             )
-        provider_id = profile_result.get("provider_id")
-        connection_status = profile_result.get("connection_status")
-        
-        # Update lead with provider info
-        lead.provider_id = provider_id
-        lead.connection_status = connection_status
-        await db.commit()
-    
-    # Check connection status
-    if lead.connection_status != "connected":
+    except Exception as e:
+        logger.error(f"Error in send_dm_to_lead: {e}")
         return SendDMResponse(
             success=False,
-            message="Not connected - send connection request first",
+            message="Internal server error",
             lead_id=lead_id,
-            dm_status="not_sent",
-            error="Cannot send DM to non-connection. Use /send-connection first."
-        )
-    
-    # Prepare message
-    dm_message = request.message if request and request.message else lead.linkedin_dm
-    if not dm_message:
-        return SendDMResponse(
-            success=False,
-            message="No message provided",
-            lead_id=lead_id,
-            error="No custom message provided and no AI-generated DM available"
-        )
-    
-    # Send DM
-    send_result = await unipile_service.create_chat_and_send_dm(provider_id, dm_message)
-    
-    if send_result.get("success"):
-        # Update lead
-        lead.is_dm_sent = True
-        lead.dm_sent_at = datetime.utcnow()
-        lead.dm_status = "sent"
-        await db.commit()
-        
-        # Create activity
-        await create_activity(
-            db=db,
-            lead_id=lead_id,
-            activity_type="dm_sent",
-            message=dm_message[:200] if dm_message else None,
-            lead_name=lead.full_name,
-            lead_linkedin_url=lead.linkedin_url
-        )
-        
-        logger.info(f"✅ DM sent to lead {lead_id}: {lead.full_name}")
-        
-        return SendDMResponse(
-            success=True,
-            message="DM sent successfully",
-            lead_id=lead_id,
-            dm_status="sent",
-            sent_at=send_result.get("sent_at")
-        )
-    else:
-        return SendDMResponse(
-            success=False,
-            message="Failed to send DM",
-            lead_id=lead_id,
-            error=send_result.get("error")
+            error=str(e)
         )
 
 
@@ -245,13 +242,6 @@ async def send_connection_to_lead(
 ):
     """
     Send a connection request to a lead.
-    
-    Flow:
-    1. Check if lead exists
-    2. Get provider_id if not already stored
-    3. Check connection status
-    4. If already connected or pending, return appropriate message
-    5. Send connection request
     """
     if not unipile_service.is_configured():
         raise HTTPException(status_code=503, detail="Unipile service not configured")
@@ -266,107 +256,37 @@ async def send_connection_to_lead(
             error=f"You've reached the daily limit of {LINKEDIN_DAILY_CONNECTION_LIMIT} connections"
         )
     
-    # Get lead from database
-    result = await db.execute(select(LinkedInLead).where(LinkedInLead.id == lead_id))
-    lead = result.scalar_one_or_none()
-    
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead not found")
-    
-    # Get or fetch provider_id
-    provider_id = lead.provider_id
-    if not provider_id:
-        profile_result = await unipile_service.get_profile(lead.linkedin_url)
-        if not profile_result.get("success"):
-            return SendConnectionResponse(
-                success=False,
-                message="Failed to get provider ID",
-                lead_id=lead_id,
-                error=profile_result.get("error")
-            )
-        provider_id = profile_result.get("provider_id")
-        connection_status = profile_result.get("connection_status")
-        
-        # Update lead with provider info
-        lead.provider_id = provider_id
-        lead.connection_status = connection_status
-        await db.commit()
-    
-    # Check if already connected
-    if lead.connection_status == "connected":
-        return SendConnectionResponse(
-            success=True,
-            message="Already connected - you can send a DM",
+    try:
+        service = LinkedInOutreachService(db)
+        result = await service.send_connection_request(
             lead_id=lead_id,
-            connection_status="connected"
-        )
-    
-    # Check if already pending
-    if lead.connection_status == "pending":
-        return SendConnectionResponse(
-            success=False,
-            message="Connection request already pending",
-            lead_id=lead_id,
-            connection_status="pending"
-        )
-    
-    # Send connection request
-    connection_message = request.message if request and request.message else None
-    send_result = await unipile_service.send_connection_request(provider_id, connection_message)
-    
-    if send_result.get("success"):
-        # Update lead
-        lead.connection_status = "pending"
-        lead.connection_sent_at = datetime.utcnow()
-        await db.commit()
-        
-        # Create activity
-        await create_activity(
-            db=db,
-            lead_id=lead_id,
-            activity_type="connection_sent",
-            message=connection_message,
-            lead_name=lead.full_name,
-            lead_linkedin_url=lead.linkedin_url,
-            extra_data={"invitation_id": send_result.get("invitation_id")}
+            message=request.message if request else None
         )
         
-        logger.info(f"✅ Connection request sent to lead {lead_id}: {lead.full_name}")
-        
-        return SendConnectionResponse(
-            success=True,
-            message="Connection request sent",
-            lead_id=lead_id,
-            connection_status="pending",
-            invitation_id=send_result.get("invitation_id"),
-            sent_at=send_result.get("sent_at")
-        )
-    else:
-        # Handle already connected/invited errors
-        if send_result.get("already_connected"):
-            lead.connection_status = "connected"
-            await db.commit()
+        if result["success"]:
+            # Invalidate rate limits cache since count changed
+            app_cache.invalidate(get_rate_limits_cache_key())
             return SendConnectionResponse(
                 success=True,
-                message="Already connected",
+                message=result["message"],
                 lead_id=lead_id,
-                connection_status="connected"
+                connection_status="connected" if result.get("already_connected") else "pending",
+                sent_at=result.get("sent_at")
             )
-        elif send_result.get("already_invited"):
-            lead.connection_status = "pending"
-            await db.commit()
+        else:
             return SendConnectionResponse(
                 success=False,
-                message="Already invited recently",
+                message=result.get("message", "Failed to send connection request"),
                 lead_id=lead_id,
-                connection_status="pending"
+                error=result.get("error")
             )
-        
+    except Exception as e:
+        logger.error(f"Error in send_connection_to_lead: {e}")
         return SendConnectionResponse(
             success=False,
-            message="Failed to send connection request",
+            message="Internal server error",
             lead_id=lead_id,
-            error=send_result.get("error")
+            error=str(e)
         )
 
 
@@ -519,15 +439,25 @@ async def unipile_webhook(
     Events:
     - message_received: Someone replied to a DM
     - new_relation: Connection request accepted
+    
+    Security:
+    - If UNIPILE_WEBHOOK_SECRET is configured, verifies the Unipile-Auth header
+    - Rejects requests with invalid auth (401 Unauthorized)
     """
+    # Verify webhook authentication if secret is configured
+    auth_header = request.headers.get("Unipile-Auth", "") or request.headers.get("unipile-auth", "")
+    
+    if not verify_webhook_auth(auth_header, settings.UNIPILE_WEBHOOK_SECRET):
+        logger.warning("🚫 Webhook rejected: Invalid Unipile-Auth header")
+        raise HTTPException(status_code=401, detail="Invalid webhook authentication")
+    
     try:
         data = await request.json()
         event_type = data.get("event")
         
-        print(f"\n[WEBHOOK] 📬 Received event: {event_type}")
-        print(f"[WEBHOOK] 📄 Raw data: {data}\n")
-        
         logger.info(f"📬 Webhook received: {event_type}")
+        
+        service = LinkedInOutreachService(db)
         
         if event_type == "message_received":
             # Only process if we are NOT the sender (it's a reply)
@@ -535,91 +465,28 @@ async def unipile_webhook(
                 sender = data.get("sender", {})
                 provider_id = sender.get("attendee_provider_id")
                 
-                # Get message text (handle string or object structure)
+                # Get message text
                 message_data = data.get("message", "")
                 message_text = message_data if isinstance(message_data, str) else message_data.get("text", "")
                 
-                print(f"[WEBHOOK] 👤 Sender Provider ID: {provider_id}")
-                print(f"[WEBHOOK] 💬 Message: {message_text}")
-                
                 if provider_id:
-                    result = await db.execute(
-                        select(LinkedInLead).where(LinkedInLead.provider_id == provider_id)
-                    )
-                    lead = result.scalar_one_or_none()
-                    
-                    if lead:
-                        lead.dm_status = "replied"
-                        lead.last_reply_at = datetime.utcnow()
-                        lead.next_follow_up_at = None  # Cancel follow-ups
-                        await db.commit()
-                        
-                        # Create activity
-                        await create_activity(
-                            db=db,
-                            lead_id=lead.id,
-                            activity_type="dm_replied",
-                            message=message_text,
-                            lead_name=lead.full_name,
-                            lead_linkedin_url=lead.linkedin_url
-                        )
-                        
-                        logger.info(f"✅ Lead {lead.id} marked as replied")
-                    else:
-                        print(f"[WEBHOOK] ⚠️ No lead found in DB with provider_id: {provider_id}")
+                    result = await service.handle_message_received(provider_id, message_text)
+                    if not result.get("success"):
+                        logger.warning(f"⚠️ Webhook processing failed: {result.get('error')}")
         
         elif event_type == "new_relation":
             # Connection accepted
-            provider_id = data.get("user_provider_id")
+            provider_id = data.get("provider_id") or data.get("user_provider_id")
             
             if provider_id:
-                result = await db.execute(
-                    select(LinkedInLead).where(LinkedInLead.provider_id == provider_id)
-                )
-                lead = result.scalar_one_or_none()
-                
-                if lead:
-                    lead.connection_status = "connected"
-                    await db.commit()
-                    
-                    # Create activity
-                    await create_activity(
-                        db=db,
-                        lead_id=lead.id,
-                        activity_type="connection_accepted",
-                        lead_name=lead.full_name,
-                        lead_linkedin_url=lead.linkedin_url
-                    )
-                    
-                    logger.info(f"✅ Lead {lead.id} connection accepted")
-                    
-                    # Auto-send DM if available
-                    if lead.linkedin_dm and not lead.is_dm_sent:
-                        dm_result = await unipile_service.create_chat_and_send_dm(
-                            provider_id, lead.linkedin_dm
-                        )
-                        
-                        if dm_result.get("success"):
-                            lead.is_dm_sent = True
-                            lead.dm_sent_at = datetime.utcnow()
-                            lead.dm_status = "sent"
-                            await db.commit()
-                            
-                            await create_activity(  
-                                db=db, 
-                                lead_id=lead.id,
-                                activity_type="dm_sent",
-                                message=lead.linkedin_dm[:200] if lead.linkedin_dm else None,
-                                lead_name=lead.full_name,
-                                lead_linkedin_url=lead.linkedin_url,
-                                extra_data={"auto_sent": True}
-                            )
-                            
-                            logger.info(f"✅ Auto-sent DM to lead {lead.id}")
+                result = await service.handle_new_relation(provider_id)
+                if not result.get("success"):
+                    logger.warning(f"⚠️ Webhook processing failed: {result.get('error')}")
         
         return {"status": "ok"}
         
     except Exception as e:
-        print(f"\n[WEBHOOK] ❌ Error processing webhook: {str(e)}\n")
         logger.error(f"❌ Webhook error: {str(e)}")
-        return {"status": "error", "message": str(e)}
+        # Return 500 so webhook sender knows to retry
+        raise HTTPException(status_code=500, detail=f"Webhook processing failed: {str(e)}")
+

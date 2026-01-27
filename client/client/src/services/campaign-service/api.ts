@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../../constants";
-import { CampaignLeadsResponse, Lead, SequencePayload } from "../../types/types";
+import { CampaignLeadsResponse, Lead, SequencePayload } from "../../types/email-outreach/types";
 
 // 1. Fetch Campaign Leads (All Verified Leads)
 export const fetchLeads = async (): Promise<CampaignLeadsResponse> => {
@@ -63,7 +63,7 @@ export const sendSequenceToInstantly = async (id: number, payload: SequencePaylo
 // BULK OPERATIONS (NEW)
 // ============================================
 
-import { BulkCheckResponse, BulkPushResponse } from "../../types/types";
+import { BulkCheckResponse, BulkPushResponse } from "../../types/email-outreach/types";
 
 /**
  * Pre-flight check before bulk push.
