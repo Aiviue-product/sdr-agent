@@ -12,6 +12,12 @@
 
 *Discover hiring signals on LinkedIn • Verify leads with AI enrichment • Execute personalized outreach via Email, LinkedIn DM, and WhatsApp*
 
+<br/>
+
+### 🌐 [**Live Demo →**](https://sdr-aiviue-production.up.railway.app/)
+
+[![Live Demo](https://img.shields.io/badge/🔴_LIVE-sdr--aiviue--production.up.railway.app-success?style=for-the-badge)](https://sdr-aiviue-production.up.railway.app/)
+
 </div>
 
 ---
@@ -627,6 +633,23 @@ HTTP Status Codes:
 
 ## 🚀 Quick Start
 
+### Try the Live Demo
+
+**No setup required!** Access the production application directly:
+
+🔗 **https://sdr-aiviue-production.up.railway.app/**
+
+Features available in live demo:
+- ✅ Lead Verification (Upload Excel/CSV)
+- ✅ Campaign Management
+- ✅ LinkedIn Signals Search
+- ✅ WhatsApp Outreach
+- ✅ Lead Enrichment
+
+---
+
+### Local Development Setup
+
 ### Prerequisites
 
 | Software | Version | Download |
@@ -869,11 +892,65 @@ sdr-agent/
 
 ## 📸 Screenshots
 
-### LinkedIn Signals Dashboard
-<img width="1255" height="818" alt="LinkedIn Signals UI" src="https://github.com/user-attachments/assets/4a316ed5-33d7-434d-816c-f2b62ed64cf6" />
+### 🏠 Home Page - Lead Verification
+<!-- Add screenshot here -->
 
-### Output Excel (Verified Leads)
-<img width="1498" height="515" alt="Output Excel" src="https://github.com/user-attachments/assets/f25170de-3d09-4846-b320-fa7cd46857b3" />
+
+---
+
+### 📧 Campaign Management Page
+<!-- Add screenshot here -->
+
+
+---
+
+### 🔗 LinkedIn Signals Module
+
+#### LinkedIn Search & Leads List
+<!-- Add screenshot here -->
+
+
+#### LinkedIn Lead Detail Panel
+<!-- Add screenshot here -->
+
+
+#### LinkedIn Activity Timeline
+<!-- Add screenshot here -->
+
+
+---
+
+### 💬 WhatsApp Outreach Module
+
+#### WhatsApp Leads Dashboard
+<!-- Add screenshot here -->
+
+
+#### WhatsApp Conversation View
+<!-- Add screenshot here -->
+
+
+#### WhatsApp Bulk Job Modal
+<!-- Add screenshot here -->
+
+
+---
+
+### ✨ Enrichment Page
+<!-- Add screenshot here -->
+
+
+---
+
+### 📊 Master Leads Page
+<!-- Add screenshot here -->
+
+
+---
+
+### 📋 Output Excel (Verified Leads)
+<!-- Add screenshot here -->
+
 
 ---
 
