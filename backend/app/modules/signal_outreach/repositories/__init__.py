@@ -1,3 +1,6 @@
-# Signal Outreach Repositories
-# TODO:
-# - signal_lead_repository.py (Signal-specific lead operations)
+"""
+Signal Outreach Repositories
+"""
+from app.modules.signal_outreach.repositories.linkedin_lead_repository import LinkedInLeadRepository
+
+__all__ = ["LinkedInLeadRepository"]
