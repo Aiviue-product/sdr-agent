@@ -107,7 +107,7 @@ class LeadRepository:
         """
         return await self.get_by_ids(
             lead_ids, 
-            columns="id, email, linkedin_url, enrichment_status, ai_variables, is_sent"
+            columns="id, email, linkedin_url, enrichment_status, ai_variables, is_sent, sector"
         )
 
     async def get_by_ids_for_bulk_push(self, lead_ids: List[int]):

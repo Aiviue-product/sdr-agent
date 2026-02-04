@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession 
 from app.shared.db.session import get_db
 from app.modules.email_outreach.repositories.lead_repository import LeadRepository
+from app.modules.email_outreach.repositories.fate_repository import FateRepository
 from app.modules.email_outreach.services.fate_service import generate_emails_for_lead
 from app.modules.email_outreach.services.instantly_service import send_lead_to_instantly, send_leads_bulk_to_instantly
 from typing import Optional, List
@@ -156,6 +157,7 @@ async def check_bulk_eligibility(
     - needs_enrichment: Has LinkedIn but not enriched yet
     - invalid_email: Missing email address
     - already_sent: Already pushed to Instantly (is_sent = true)
+    - missing_fate_matrix: Sector not configured in FATE Matrix (NEW)
     """
     if not request.lead_ids:
         return {"error": "No lead IDs provided"}
@@ -164,16 +166,22 @@ async def check_bulk_eligibility(
         return {"error": f"Maximum {MAX_BULK_LEADS} leads allowed per batch"}
 
     lead_repo = LeadRepository(db)
+    fate_repo = FateRepository(db)
     leads = await lead_repo.get_by_ids_for_bulk_check(request.lead_ids)
+    
+    # Cache FATE Matrix lookups to avoid redundant DB queries
+    fate_cache = {}
     
     # Categorize leads
     ready = []
     needs_enrichment = []
     invalid_email = []
     already_sent = []
+    missing_fate_matrix = []
     
     for lead in leads:
         lead_id = lead["id"]
+        sector = lead.get("sector", "")
         
         # Check if already sent
         if lead.get("is_sent"):
@@ -183,6 +191,16 @@ async def check_bulk_eligibility(
         # Check for valid email
         if not lead.get("email"):
             invalid_email.append(lead_id)
+            continue
+        
+        # Check if FATE Matrix exists for this sector (with caching)
+        if sector not in fate_cache:
+            fate_rule = await fate_repo.get_rule_by_sector(sector)
+            fate_cache[sector] = fate_rule is not None
+        
+        if not fate_cache[sector]:
+            # Sector not in FATE Matrix -> Cannot generate emails
+            missing_fate_matrix.append(lead_id)
             continue
         
         # Check enrichment requirement
@@ -207,11 +225,13 @@ async def check_bulk_eligibility(
         "needs_enrichment": len(needs_enrichment),
         "invalid_email": len(invalid_email),
         "already_sent": len(already_sent),
+        "missing_fate_matrix": len(missing_fate_matrix),
         "details": {
             "ready": ready,
             "needs_enrichment": needs_enrichment,
             "invalid_email": invalid_email,
-            "already_sent": already_sent
+            "already_sent": already_sent,
+            "missing_fate_matrix": missing_fate_matrix
         }
     }
 
@@ -228,8 +248,10 @@ async def bulk_push_to_instantly(
     - Not already sent (is_sent = false)
     - Have valid email
     - Either: No LinkedIn (generic email OK) OR LinkedIn + Enriched (AI email)
+    - Have valid FATE Matrix entry for their sector (NEW)
     
     Leads with LinkedIn but NOT enriched are SKIPPED (not blocked entirely).
+    Leads with missing FATE Matrix are SKIPPED to prevent empty emails.
     """
     if not request.lead_ids:
         raise HTTPException(status_code=400, detail="No lead IDs provided")
@@ -245,6 +267,7 @@ async def bulk_push_to_instantly(
     skipped_needs_enrichment = []
     skipped_no_email = []
     skipped_already_sent = []
+    skipped_missing_fate = []  # NEW: Track leads with missing FATE Matrix
     
     for lead in leads:
         lead_dict = dict(lead)
@@ -283,7 +306,8 @@ async def bulk_push_to_instantly(
             "message": "No eligible leads to push",
             "skipped_needs_enrichment": skipped_needs_enrichment,
             "skipped_no_email": skipped_no_email,
-            "skipped_already_sent": skipped_already_sent
+            "skipped_already_sent": skipped_already_sent,
+            "skipped_missing_fate": skipped_missing_fate
         }
     
     # --- AUTO-GENERATE EMAILS FOR LEADS WITHOUT THEM ---
@@ -295,7 +319,10 @@ async def bulk_push_to_instantly(
         
         for lead in leads_needing_emails:
             try:
-                await generate_emails_for_lead(lead["id"])
+                result = await generate_emails_for_lead(lead["id"])
+                # Check if generation failed (returns error dict, not exception)
+                if isinstance(result, dict) and "error" in result:
+                    logger.warning(f"⚠️ FATE Matrix missing for lead {lead['id']}: {result['error']}")
             except Exception as e:
                 logger.warning(f"⚠️ Failed to generate emails for lead {lead['id']}: {e}")
         
@@ -312,25 +339,47 @@ async def bulk_push_to_instantly(
         
         logger.info(f"✅ Email generation complete for {len(leads_needing_emails)} leads")
     
-    # Call bulk Instantly service
-    instantly_result = await send_leads_bulk_to_instantly(leads_to_push)
+    # --- SAFETY CHECK: Filter out leads that STILL have empty emails ---
+    # This catches leads where FATE Matrix was missing (email generation failed silently)
+    final_leads_to_push = []
+    for lead in leads_to_push:
+        if not lead.get("email_1_body") or not lead.get("email_1_body").strip():
+            # Email is empty - likely missing FATE Matrix
+            skipped_missing_fate.append(lead["id"])
+            logger.warning(f"⚠️ Skipping lead {lead['id']} - empty email template (missing FATE Matrix for sector: {lead.get('sector', 'unknown')})")
+        else:
+            final_leads_to_push.append(lead)
+    
+    if not final_leads_to_push:
+        return {
+            "success": False,
+            "message": "No leads with valid email templates to push",
+            "skipped_needs_enrichment": skipped_needs_enrichment,
+            "skipped_no_email": skipped_no_email,
+            "skipped_already_sent": skipped_already_sent,
+            "skipped_missing_fate": skipped_missing_fate
+        }
+    
+    # Call bulk Instantly service (only with leads that have valid emails)
+    instantly_result = await send_leads_bulk_to_instantly(final_leads_to_push)
     
     if "error" in instantly_result:
         raise HTTPException(status_code=500, detail=instantly_result["error"])
     
     # Update is_sent for successfully pushed leads (via repository)
-    pushed_lead_ids = [lead["id"] for lead in leads_to_push]
+    pushed_lead_ids = [lead["id"] for lead in final_leads_to_push]
     await lead_repo.bulk_update_sent(pushed_lead_ids)
     
     return {
         "success": True,
         "message": f"Successfully pushed {instantly_result.get('leads_uploaded', 0)} leads to Instantly",
         "total_selected": len(request.lead_ids),
-        "total_pushed": len(leads_to_push),
+        "total_pushed": len(final_leads_to_push),
         "leads_uploaded": instantly_result.get("leads_uploaded", 0),
         "duplicated_in_instantly": instantly_result.get("duplicated_leads", 0),
         "skipped_needs_enrichment": skipped_needs_enrichment,
         "skipped_no_email": skipped_no_email,
         "skipped_already_sent": skipped_already_sent,
+        "skipped_missing_fate": skipped_missing_fate,
         "instantly_response": instantly_result
     }

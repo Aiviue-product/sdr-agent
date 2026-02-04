@@ -38,6 +38,9 @@ export interface Lead {
     // --- BULK PUSH FIELDS ---
     is_sent?: boolean;
     sent_at?: string;
+
+    // --- EMAIL GENERATION ERROR ---
+    email_generation_error?: string;
 }
 
 export interface CampaignLeadsResponse {
@@ -62,11 +65,13 @@ export interface BulkCheckResponse {
     needs_enrichment: number;
     invalid_email: number;
     already_sent: number;
+    missing_fate_matrix: number;  // NEW: Leads with sector not in FATE Matrix
     details: {
         ready: number[];
         needs_enrichment: number[];
         invalid_email: number[];
         already_sent: number[];
+        missing_fate_matrix: number[];  // NEW
     };
 }
 
@@ -80,6 +85,7 @@ export interface BulkPushResponse {
     skipped_needs_enrichment: number[];
     skipped_no_email: number[];
     skipped_already_sent: number[];
+    skipped_missing_fate: number[];  // NEW: Leads skipped due to missing FATE Matrix
 }
 
 // --- EMAIL CARD COMPONENT TYPES ---

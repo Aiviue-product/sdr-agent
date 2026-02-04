@@ -3,6 +3,7 @@
 import {
     AlertTriangle,
     ArrowLeft,
+    Ban,
     BrainCircuit,
     Briefcase,
     Check,
@@ -135,6 +136,19 @@ export default function CampaignPage() {
 
     const handlePushSequence = async () => {
         if (!selectedLeadDetail || !selectedLeadId) return;
+        
+        // Safety check: Don't push if emails can't be generated
+        if (selectedLeadDetail.email_generation_error) {
+            toast.error('Cannot push: FATE Matrix missing for this sector');
+            return;
+        }
+        
+        // Safety check: Don't push if all emails are empty
+        if (!selectedLeadDetail.email_1_body && !selectedLeadDetail.email_2_body && !selectedLeadDetail.email_3_body) {
+            toast.error('Cannot push: All email templates are empty');
+            return;
+        }
+        
         try {
             toast.loading('Pushing sequence to Instantly...', { id: 'push-sequence' });
 
@@ -162,12 +176,25 @@ export default function CampaignPage() {
 
     const handleSend = async (templateId: number) => {
         if (!selectedLeadDetail || !selectedLeadId) return;
+        
+        // Safety check: Don't send if emails can't be generated
+        if (selectedLeadDetail.email_generation_error) {
+            toast.error('Cannot send: FATE Matrix missing for this sector');
+            return;
+        }
+        
         let finalBody = "";
         // Note: For single send, you might want to pass subject too, 
         // but typically sendEmailMock uses just body for preview.
         if (templateId === 1) finalBody = selectedLeadDetail.email_1_body || "";
         if (templateId === 2) finalBody = selectedLeadDetail.email_2_body || "";
         if (templateId === 3) finalBody = selectedLeadDetail.email_3_body || "";
+
+        // Safety check: Don't send empty email
+        if (!finalBody || finalBody.trim() === '') {
+            toast.error('Cannot send: Email content is empty');
+            return;
+        }
 
         try {
             toast.loading('Sending to Instantly.ai...', { id: `send-${templateId}` });
@@ -440,9 +467,16 @@ export default function CampaignPage() {
                                             <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
                                                 <Briefcase className="w-3 h-3" /> {selectedLeadDetail.company_name}
                                             </span>
-                                            <span className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded">
-                                                <CheckCircle2 className="w-3 h-3" /> {selectedLeadDetail.sector}
-                                            </span>
+                                            {selectedLeadDetail.email_generation_error ? (
+                                                <span className="flex items-center gap-1 bg-red-100 text-red-700 px-2 py-1 rounded border border-red-200">
+                                                    <Ban className="w-3 h-3" /> {selectedLeadDetail.sector}
+                                                    <span className="text-xs bg-red-200 px-1.5 rounded ml-1">Missing FATE</span>
+                                                </span>
+                                            ) : (
+                                                <span className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded">
+                                                    <CheckCircle2 className="w-3 h-3" /> {selectedLeadDetail.sector}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
@@ -488,9 +522,21 @@ export default function CampaignPage() {
                                         </Link>
 
                                         {/* 4. Push to Instantly */}
-                                        <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-lg text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all text-sm"
-                                            onClick={handlePushSequence}>
-                                            <Send className="w-4 h-4" />
+                                        <button 
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                                                selectedLeadDetail.email_generation_error
+                                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                    : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200'
+                                            }`}
+                                            onClick={handlePushSequence}
+                                            disabled={!!selectedLeadDetail.email_generation_error}
+                                            title={selectedLeadDetail.email_generation_error ? 'Cannot push - FATE Matrix missing for this sector' : 'Push sequence to Instantly'}
+                                        >
+                                            {selectedLeadDetail.email_generation_error ? (
+                                                <Ban className="w-4 h-4" />
+                                            ) : (
+                                                <Send className="w-4 h-4" />
+                                            )}
                                             Push to Instantly
                                         </button>
                                     </div>
@@ -500,6 +546,30 @@ export default function CampaignPage() {
                             {/* Scrollable Email Content */}
                             <div className="flex-1 overflow-y-auto p-8 bg-gray-50">
                                 <div className="max-w-3xl mx-auto space-y-8">
+
+                                    {/* === FATE MATRIX ERROR BANNER === */}
+                                    {selectedLeadDetail.email_generation_error && (
+                                        <div className="bg-red-50 border border-red-200 rounded-xl p-5 flex items-start gap-4">
+                                            <div className="flex-shrink-0 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                                                <Ban className="w-6 h-6 text-red-500" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="font-bold text-red-800 text-lg">Emails Cannot Be Generated</h4>
+                                                <p className="text-red-600 mt-1">
+                                                    {selectedLeadDetail.email_generation_error}
+                                                </p>
+                                                <p className="text-red-500 text-sm mt-2">
+                                                    The sector <strong>&quot;{selectedLeadDetail.sector}&quot;</strong> is not configured in our FATE Matrix. 
+                                                    Please add this sector to the FATE Matrix database to enable email generation for this lead.
+                                                </p>
+                                                <div className="mt-3 flex items-center gap-2">
+                                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                                                        Action Required: Add sector to FATE Matrix
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Template 1 - HAS REWRITE BUTTON */}
                                     <EmailCard
@@ -512,6 +582,7 @@ export default function CampaignPage() {
                                         color="blue"
                                         // Pass handleEnrichment here to enable the rewrite button
                                         onRegenerate={handleEnrichment}
+                                        hasError={!!selectedLeadDetail.email_generation_error}
                                     />
 
                                     {/* Template 2 */}
@@ -523,6 +594,7 @@ export default function CampaignPage() {
                                         onBodyChange={(text: string) => updateLocalEmailField('email_2_body', text)}
                                         onSend={() => handleSend(2)}
                                         color="purple"
+                                        hasError={!!selectedLeadDetail.email_generation_error}
                                     />
 
                                     {/* Template 3 */}
@@ -534,6 +606,7 @@ export default function CampaignPage() {
                                         onBodyChange={(text: string) => updateLocalEmailField('email_3_body', text)}
                                         onSend={() => handleSend(3)}
                                         color="orange"
+                                        hasError={!!selectedLeadDetail.email_generation_error}
                                     />
 
                                 </div>
@@ -590,6 +663,12 @@ export default function CampaignPage() {
                                             <div className="flex justify-between text-sm">
                                                 <span className="text-red-600">Skipped (no email):</span>
                                                 <span className="font-medium text-red-600">{bulkPushResult.skipped_no_email.length}</span>
+                                            </div>
+                                        )}
+                                        {bulkPushResult.skipped_missing_fate?.length > 0 && (
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-red-600">Skipped (missing FATE Matrix):</span>
+                                                <span className="font-medium text-red-600">{bulkPushResult.skipped_missing_fate.length}</span>
                                             </div>
                                         )}
                                     </div>
@@ -650,6 +729,20 @@ export default function CampaignPage() {
                                         </div>
                                     )}
 
+                                    {bulkCheckResult.missing_fate_matrix > 0 && (
+                                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                                            <Ban className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="text-red-800 font-medium text-sm">
+                                                    {bulkCheckResult.missing_fate_matrix} lead{bulkCheckResult.missing_fate_matrix > 1 ? 's' : ''} have missing FATE Matrix
+                                                </p>
+                                                <p className="text-red-700 text-xs mt-1">
+                                                    These leads have sectors not configured in the FATE Matrix. Emails cannot be generated for them. They will be skipped.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {bulkCheckResult.already_sent > 0 && (
                                         <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-600">
                                             {bulkCheckResult.already_sent} lead{bulkCheckResult.already_sent > 1 ? 's' : ''} already sent (skipped)
@@ -696,24 +789,40 @@ export default function CampaignPage() {
 }
 
 // --- SUB COMPONENT FOR EMAIL CARD (EDITABLE) ---
-function EmailCard({ title, subject, body, onSend, color, onSubjectChange, onBodyChange, onRegenerate }: EmailCardProps) {
+interface ExtendedEmailCardProps extends EmailCardProps {
+    hasError?: boolean;
+}
+
+function EmailCard({ title, subject, body, onSend, color, onSubjectChange, onBodyChange, onRegenerate, hasError }: ExtendedEmailCardProps) {
     const colors = EMAIL_CARD_COLORS;
 
+    // Check if email content is empty/missing
+    const isEmailMissing = !body || body.trim() === '';
+
     return (
-        <div className={`bg-white rounded-xl shadow-sm border border-gray-200 border-l-4 ${colors[color]} overflow-hidden`}>
+        <div className={`bg-white rounded-xl shadow-sm border border-gray-200 border-l-4 ${hasError ? 'border-l-red-400' : colors[color]} overflow-hidden ${hasError ? 'opacity-60' : ''}`}>
             {/* Card Header & Controls */}
             <div className="p-4 border-b border-gray-100 flex flex-col gap-3 bg-gray-50">
 
                 {/* Top Row: Title & Buttons */}
                 <div className="flex justify-between items-center">
                     <h4 className="font-semibold text-gray-700 flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-gray-400" />
+                        {hasError ? (
+                            <Ban className="w-4 h-4 text-red-400" />
+                        ) : (
+                            <Mail className="w-4 h-4 text-gray-400" />
+                        )}
                         {title}
+                        {hasError && (
+                            <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded font-medium">
+                                Unavailable
+                            </span>
+                        )}
                     </h4>
 
                     <div className="flex gap-3">
-                        {/* REGENERATE (Only shown if onRegenerate is passed) */}
-                        {onRegenerate && (
+                        {/* REGENERATE (Only shown if onRegenerate is passed and no error) */}
+                        {onRegenerate && !hasError && (
                             <button
                                 onClick={onRegenerate}
                                 className="flex items-center gap-1 bg-amber-100 text-xs font-medium text-orange-600 hover:text-orange-800 hover:bg-orange-50 px-2 py-1 rounded transition-colors"
@@ -726,7 +835,13 @@ function EmailCard({ title, subject, body, onSend, color, onSubjectChange, onBod
 
                         <button
                             onClick={onSend}
-                            className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                            disabled={hasError || isEmailMissing}
+                            className={`flex items-center gap-1 text-xs font-bold ${
+                                hasError || isEmailMissing
+                                    ? 'text-gray-400 cursor-not-allowed'
+                                    : 'text-indigo-600 hover:text-indigo-800 hover:underline'
+                            }`}
+                            title={hasError ? 'Cannot send - FATE Matrix missing for this sector' : isEmailMissing ? 'Cannot send - Email content is empty' : 'Send this email'}
                         >
                             <Send className="w-3 h-3" />
                             Send Now
@@ -735,24 +850,33 @@ function EmailCard({ title, subject, body, onSend, color, onSubjectChange, onBod
                 </div>
 
                 {/* Subject Line Input Row */}
-                <div className="flex items-center gap-2 bg-indigo-50 px-3 py-2 rounded border border-gray-200 shadow-sm">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded border shadow-sm ${hasError ? 'bg-red-50 border-red-200' : 'bg-indigo-50 border-gray-200'}`}>
                     <span className="text-gray-400 text-xs font-bold uppercase tracking-wide">Subject:</span>
                     <input
-                        className="flex-1 text-sm font-medium text-gray-800 outline-none placeholder:text-gray-300"
+                        className="flex-1 text-sm font-medium text-gray-800 outline-none placeholder:text-gray-300 bg-transparent"
                         value={subject || ""}
                         onChange={(e) => onSubjectChange(e.target.value)}
-                        placeholder="Subject line will appear here..."
+                        placeholder={hasError ? "N/A - Missing FATE Matrix" : "Subject line will appear here..."}
+                        disabled={hasError}
                     />
                 </div>
             </div>
 
             <div className="p-0">
-                <textarea
-                    className="w-full h-64 p-6 text-gray-600 text-sm leading-relaxed font-mono border-none focus:ring-2 focus:ring-inset focus:ring-indigo-100 resize-none outline-none"
-                    value={body || ""}
-                    onChange={(e) => onBodyChange(e.target.value)}
-                    placeholder="Generating email..."
-                />
+                {hasError ? (
+                    <div className="w-full h-64 p-6 flex flex-col items-center justify-center bg-red-50/50">
+                        <Ban className="w-12 h-12 text-red-300 mb-3" />
+                        <p className="text-red-600 font-medium text-center">Email cannot be generated</p>
+                        <p className="text-red-400 text-sm text-center mt-1">Missing FATE Matrix entry for this sector</p>
+                    </div>
+                ) : (
+                    <textarea
+                        className="w-full h-64 p-6 text-gray-600 text-sm leading-relaxed font-mono border-none focus:ring-2 focus:ring-inset focus:ring-indigo-100 resize-none outline-none"
+                        value={body || ""}
+                        onChange={(e) => onBodyChange(e.target.value)}
+                        placeholder="Generating email..."
+                    />
+                )}
             </div>
         </div>
     );
