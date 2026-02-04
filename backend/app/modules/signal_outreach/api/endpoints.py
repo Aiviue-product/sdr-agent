@@ -16,7 +16,10 @@ from app.shared.utils.cache import (
 )
 from app.shared.utils.exceptions import ConcurrentModificationError
 from app.modules.signal_outreach.repositories.linkedin_lead_repository import LinkedInLeadRepository
-from app.modules.signal_outreach.services.linkedin_outreach_service import LinkedInOutreachService
+from app.modules.signal_outreach.services.linkedin_outreach_service import (
+    LinkedInOutreachService,
+    generate_dms_background  # Background task function
+)
 from app.modules.signal_outreach.api.schemas import (
     LinkedInSearchRequest,
     LinkedInSearchResponse,
@@ -42,13 +45,15 @@ async def search_linkedin_posts(
 ):
     """
     Search LinkedIn posts by keywords and save discovered leads.
-    Logic is orchestrated by LinkedInOutreachService.
+    
+    FAST RESPONSE: Returns immediately after scraping posts.
+    DM generation happens in background (dm_generation_status tracks progress).
     """
     logger.info(f"🔍 LinkedIn search requested: {request.keywords}")
     
     try:
         service = LinkedInOutreachService(db)
-        result = await service.run_full_outreach_search(
+        result = await service.run_full_outreach_search( 
             keywords=request.keywords,
             date_filter=request.date_filter,
             posts_per_keyword=request.posts_per_keyword
@@ -62,6 +67,12 @@ async def search_linkedin_posts(
         
         # Invalidate keywords cache since new leads may have been added
         app_cache.invalidate(CACHE_KEY_KEYWORDS)
+        
+        # Queue background task to generate DMs (runs after response is sent)
+        lead_ids = result.get("lead_ids", [])
+        if lead_ids:
+            logger.info(f"📬 Queuing DM generation for {len(lead_ids)} leads")
+            background_tasks.add_task(generate_dms_background, lead_ids)
         
         return LinkedInSearchResponse(
             success=True,
@@ -164,6 +175,11 @@ async def get_linkedin_lead_detail(
     # Parse ai_variables if it's a string
     ai_variables = safe_json_parse(lead.get("ai_variables"), default={})
     
+    # Get dm_generation_status value (handle Enum)
+    dm_gen_status = lead.get("dm_generation_status")
+    if dm_gen_status is not None and hasattr(dm_gen_status, 'value'):
+        dm_gen_status = dm_gen_status.value  # Convert Enum to string
+    
     return {
         "id": lead["id"],
         "full_name": lead["full_name"],
@@ -184,6 +200,9 @@ async def get_linkedin_lead_detail(
         "is_dm_sent": lead.get("is_dm_sent", False),
         "connection_status": lead.get("connection_status", "none"),
         "dm_status": lead.get("dm_status", "not_sent"),
+        "dm_generation_status": dm_gen_status or "pending",
+        "dm_generation_error": lead.get("dm_generation_error"),
+        "dm_generation_started_at": str(lead["dm_generation_started_at"]) if lead.get("dm_generation_started_at") else None,
         "dm_sent_at": str(lead["dm_sent_at"]) if lead.get("dm_sent_at") else None,
         "created_at": str(lead["created_at"]) if lead.get("created_at") else None,
         "updated_at": str(lead["updated_at"]) if lead.get("updated_at") else None

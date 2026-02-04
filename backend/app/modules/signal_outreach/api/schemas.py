@@ -86,6 +86,9 @@ class LinkedInLeadDetail(BaseModel):
     ai_variables: Optional[dict] = None
     linkedin_dm: Optional[str] = None
     is_dm_sent: bool = False
+    dm_generation_status: Optional[str] = None
+    dm_generation_error: Optional[str] = None
+    dm_generation_started_at: Optional[str] = None
     dm_sent_at: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

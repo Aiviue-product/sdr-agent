@@ -94,9 +94,11 @@ export default function LinkedInSignalsPage() {
         handleSearch
     } = useLinkedInSearch({
         onSearchSuccess: () => {
+            // Reset to first page and show all keywords
+            // Don't call loadLeads() here - the useEffect will handle it
+            // when selectedKeywordFilter changes (avoids stale closure issue)
             setCurrentPage(0);
             setSelectedKeywordFilter('');
-            loadLeads();
         }
     });
 

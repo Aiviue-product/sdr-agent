@@ -27,6 +27,11 @@ from app.shared.core.constants import TIMEOUT_GEMINI_AI, GEMINI_MODEL_NAME
 logger = logging.getLogger("linkedin_intelligence_service")
 
 
+# Custom error used to stop background DM generation on 429
+class RateLimitError(Exception):
+    """Raised when Gemini rate limit is reached (HTTP 429 / RESOURCE_EXHAUSTED)."""
+
+
 #TODO/sagar rajak: Add parallel processing support for when you upgrade
 
 # ============================================
@@ -225,8 +230,8 @@ class LinkedInIntelligenceService:
         Rate-limited API call with retry logic.
         
         - Enforces minimum delay between API calls
-        - Retries on 429 errors with exponential backoff
-        - Returns None if all retries fail
+        - Raises RateLimitError immediately on 429 to stop background task
+        - Returns None on non-retryable errors
         """
         if not self._is_available():
             return None
@@ -272,15 +277,8 @@ class LinkedInIntelligenceService:
                 
                 # Check if it's a rate limit error
                 if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                    retry_delay = RETRY_BASE_DELAY_SECONDS * (2 ** attempt)  # Exponential backoff
-                    logger.warning(f"⚠️ Rate limited (429). Retry {attempt + 1}/{MAX_RETRIES} in {retry_delay}s")
-                    
-                    if attempt < MAX_RETRIES - 1:
-                        await asyncio.sleep(retry_delay)
-                        continue
-                    else:
-                        logger.error("❌ Max retries reached for rate limit")
-                        return None
+                    logger.warning("⚠️ Rate limited (429). Stopping DM generation to avoid retries.")
+                    raise RateLimitError("Gemini rate limit reached")
                 else:
                     # Other error - don't retry
                     logger.error(f"❌ API error: {e}")
@@ -409,6 +407,8 @@ SET hiring_signal = FALSE if:
                 "ai_variables": analysis
             }
 
+        except RateLimitError:
+            raise
         except asyncio.TimeoutError:
             logger.error(f"AI Analysis timed out (>{TIMEOUT_GEMINI_AI}s)")
             return self._get_fallback_analysis(author_name, include_dm=False)
@@ -471,6 +471,8 @@ Return ONLY the message text. No quotes, no explanation, just the message.
             dm = response.text.strip().strip('"').strip("'")
             return dm[:400]
             
+        except RateLimitError:
+            raise
         except Exception as e:
             logger.error(f"DM Generation Failed: {e}")
             return self._get_fallback_dm(author_name)
@@ -613,6 +615,8 @@ Return ONLY valid JSON:
                 "linkedin_dm": dm
             }
 
+        except RateLimitError:
+            raise
         except asyncio.TimeoutError:
             logger.error(f"AI Analysis timed out (>{TIMEOUT_GEMINI_AI}s)")
             return self._get_fallback_analysis(author_name, include_dm=True)

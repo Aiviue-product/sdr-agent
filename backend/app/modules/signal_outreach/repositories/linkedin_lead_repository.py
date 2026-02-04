@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.shared.utils.json_utils import safe_json_parse
 from app.shared.utils.exceptions import ConcurrentModificationError
-from app.modules.signal_outreach.models.linkedin_lead import LinkedInLead
+from app.modules.signal_outreach.models.linkedin_lead import LinkedInLead, DmGenerationStatus
 from app.modules.signal_outreach.models.linkedin_activity import LinkedInActivity
 from app.shared.core.constants import DEFAULT_PAGE_SIZE
 
@@ -275,17 +275,21 @@ class LinkedInLeadRepository:
                 linkedin_url, headline, profile_image_url,
                 search_keyword, post_data,
                 hiring_signal, hiring_roles, pain_points, ai_variables,
-                linkedin_dm
+                linkedin_dm,
+                dm_generation_status, dm_generation_started_at
             )
             VALUES (
                 :full_name, :first_name, :last_name, :company_name, :is_company,
                 :linkedin_url, :headline, :profile_image_url,
                 :search_keyword, :post_data,
                 :hiring_signal, :hiring_roles, :pain_points, :ai_variables,
-                :linkedin_dm
+                :linkedin_dm,
+                :dm_generation_status, :dm_generation_started_at
             )
             ON CONFLICT (linkedin_url) DO UPDATE SET
                 post_data = COALESCE(linkedin_outreach_leads.post_data, '[]'::jsonb) || excluded.post_data::jsonb,
+                dm_generation_status = excluded.dm_generation_status,
+                dm_generation_started_at = excluded.dm_generation_started_at,
                 updated_at = NOW()
         """)
 
@@ -315,7 +319,9 @@ class LinkedInLeadRepository:
                 "hiring_roles": lead.get("hiring_roles"),
                 "pain_points": lead.get("pain_points"),
                 "ai_variables": json.dumps(lead.get("ai_variables", {})),
-                "linkedin_dm": lead.get("linkedin_dm")
+                "linkedin_dm": lead.get("linkedin_dm"),
+                "dm_generation_status": lead.get("dm_generation_status", "pending"),
+                "dm_generation_started_at": lead.get("dm_generation_started_at")
             }
             await self.db.execute(query, params)
         
@@ -455,6 +461,7 @@ class LinkedInLeadRepository:
         """
         Update AI enrichment data for a lead.
         Called after AI analysis is complete.
+        Also sets dm_generation_status to 'generated'.
         
         OPTIMISTIC LOCKING:
         If current_version is provided, the update will only succeed if the 
@@ -489,6 +496,8 @@ class LinkedInLeadRepository:
                     pain_points=pain_points,
                     ai_variables=ai_variables,
                     linkedin_dm=linkedin_dm,
+                    dm_generation_status=DmGenerationStatus.GENERATED,  # String constant
+                    dm_generation_error=None,
                     version=LinkedInLead.version + 1,  # Increment version
                     updated_at=func.now()
                 )
@@ -512,7 +521,57 @@ class LinkedInLeadRepository:
                     pain_points=pain_points,
                     ai_variables=ai_variables,
                     linkedin_dm=linkedin_dm,
+                    dm_generation_status=DmGenerationStatus.GENERATED,  # String constant
+                    dm_generation_error=None,
                     version=LinkedInLead.version + 1,  # Always increment version
+                    updated_at=func.now()
+                )
+            )
+            await self.db.execute(stmt)
+        # NO COMMIT HERE - service layer handles transaction
+
+    async def update_dm_generation_status(
+        self,
+        lead_id: int,
+        status: str,
+        error_reason: Optional[str] = None,
+        current_version: Optional[int] = None
+    ):
+        """
+        Update only the DM generation status for a lead.
+        Used when DM generation fails.
+        
+        Args:
+            status: One of DmGenerationStatus.PENDING/GENERATED/FAILED
+        
+        NOTE: This method does NOT commit. The calling service is responsible for
+        committing the transaction.
+        """
+        if current_version is not None:
+            stmt = (
+                update(LinkedInLead)
+                .where(
+                    LinkedInLead.id == lead_id,
+                    LinkedInLead.version == current_version
+                )
+                .values(
+                    dm_generation_status=status,
+                    dm_generation_error=error_reason,
+                    version=LinkedInLead.version + 1,
+                    updated_at=func.now()
+                )
+            )
+            result = await self.db.execute(stmt)
+            if result.rowcount == 0:
+                raise ConcurrentModificationError("LinkedInLead", lead_id)
+        else:
+            stmt = (
+                update(LinkedInLead)
+                .where(LinkedInLead.id == lead_id)
+                .values(
+                    dm_generation_status=status,
+                    dm_generation_error=error_reason,
+                    version=LinkedInLead.version + 1,
                     updated_at=func.now()
                 )
             )

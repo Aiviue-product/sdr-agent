@@ -159,7 +159,11 @@ export default function LeadDetailPanel({
                     {/* DM Preview takes prominence */}
                     <DmPreviewCard
                         dm={leadDetail.linkedin_dm}
+                        dmGenerationStatus={leadDetail.dm_generation_status}
+                        dmGenerationStartedAt={leadDetail.dm_generation_started_at}
                         onCopy={onCopyDm}
+                        onRefresh={onRefresh}
+                        isRefreshing={isRefreshing}
                     />
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
