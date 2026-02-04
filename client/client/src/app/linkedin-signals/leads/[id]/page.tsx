@@ -28,7 +28,7 @@ import { LinkedInLeadDetail } from '../../../../types/linkedin';
 
 export default function LeadDetailPage() {
     const params = useParams();
-    const leadId = parseInt(params.id as string, 10);
+    const leadId = params?.id ? parseInt(params.id as string, 10) : NaN;
 
     const [lead, setLead] = useState<LinkedInLeadDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -80,8 +80,8 @@ export default function LeadDetailPage() {
             await refreshLeadAnalysis(leadId);
             toast.success('Analysis refreshed');
             await loadLead();
-        } catch (err: any) {
-            toast.error(err.message || 'Refresh failed');
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Refresh failed');
         } finally {
             setIsRefreshing(false);
         }
@@ -97,8 +97,8 @@ export default function LeadDetailPage() {
             } else {
                 toast.error(result.error || 'Failed to send DM');
             }
-        } catch (err: any) {
-            toast.error(err.message || 'Failed to send DM');
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Failed to send DM');
         } finally {
             setIsSendingDM(false);
         }
@@ -114,8 +114,8 @@ export default function LeadDetailPage() {
             } else {
                 toast.error(result.error || 'Failed to send connection');
             }
-        } catch (err: any) {
-            toast.error(err.message || 'Failed to send connection');
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Failed to send connection');
         } finally {
             setIsSendingConnection(false);
         }
