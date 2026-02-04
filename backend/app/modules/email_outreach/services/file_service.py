@@ -5,6 +5,8 @@ import io
 import logging
 from app.modules.email_outreach.services.email_service import verify_individual, verify_bulk_batch
 from app.modules.email_outreach.services.lead_service import save_verified_leads_to_db
+from app.modules.email_outreach.repositories.lead_repository import LeadRepository
+from app.shared.db.session import AsyncSessionLocal
 from app.shared.core.constants import MAX_BULK_EMAILS
 
 # Setup Logger
@@ -136,30 +138,58 @@ async def _process_bulk_logic(df):
         mask = None
 
     # 2. Extract Emails (Cleaned & Lowercase)
-    emails_to_check = rows_to_process['email'].dropna().astype(str).str.strip().str.lower().unique().tolist()
+    all_emails = rows_to_process['email'].dropna().astype(str).str.strip().str.lower().unique().tolist()
     
-    if not emails_to_check:
+    if not all_emails:
         logger.warning("⚠️ No emails found to verify in Bulk Logic.")
         return
+
+    # === NEW: CHECK DATABASE FOR ALREADY VERIFIED EMAILS ===
+    already_verified_in_db = {}
+    try:
+        async with AsyncSessionLocal() as session:
+            lead_repo = LeadRepository(session)
+            already_verified_in_db = await lead_repo.get_verified_emails(all_emails)
+            logger.info(f"✅ Database Check: Found {len(already_verified_in_db)} already-verified emails (will skip ZeroBounce)")
+    except Exception as e:
+        logger.warning(f"⚠️ Database check failed, proceeding with all emails: {e}")
+    
+    # Filter out already-verified emails to save API credits
+    emails_to_check = [e for e in all_emails if e not in already_verified_in_db]
+    skipped_count = len(all_emails) - len(emails_to_check)
+    
+    if skipped_count > 0:
+        logger.info(f"💰 API Credits Saved: Skipping {skipped_count} already-verified emails")
+    
+    # === END NEW CODE ===
 
     CHUNK_SIZE = MAX_BULK_EMAILS
     verification_results = {}
     api_failed = False
 
-    # 3. Batch Process
-    for i in range(0, len(emails_to_check), CHUNK_SIZE):
-        chunk = emails_to_check[i:i + CHUNK_SIZE]
-        batch_results = await verify_bulk_batch(chunk)
-        
-        if not batch_results and chunk: 
-            logger.error(f"❌ Batch Verification Failed for chunk starting index {i}")
-            api_failed = True
-        
-        verification_results.update(batch_results)
+    # 3. Batch Process (Only for emails NOT already verified)
+    if emails_to_check:
+        for i in range(0, len(emails_to_check), CHUNK_SIZE):
+            chunk = emails_to_check[i:i + CHUNK_SIZE]
+            batch_results = await verify_bulk_batch(chunk)
+            
+            if not batch_results and chunk: 
+                logger.error(f"❌ Batch Verification Failed for chunk starting index {i}")
+                api_failed = True
+            
+            verification_results.update(batch_results)
 
     # 4. Map Results Back to DataFrame (Strict Loop)
     for index, row in rows_to_process.iterrows():
         email = str(row.get('email', '')).strip().lower()
+        
+        # === NEW: Check if already verified in DB first ===
+        if email in already_verified_in_db:
+            # Use status from database - no API call was made
+            df.at[index, 'status'] = already_verified_in_db[email]['status']
+            df.at[index, 'tag'] = already_verified_in_db[email]['tag']
+            continue
+        # === END NEW CODE ===
         
         if email in verification_results:
             raw_status = str(verification_results[email]).lower().strip()
@@ -193,6 +223,7 @@ async def _process_individual_logic(df):
     """
     Process row-by-row with STRICT input cleaning.
     Fix: Forcefully overwrites status for non-top rows to match Bulk strictness.
+    NEW: Checks database for already-verified emails to save API credits.
     """
     
     # 1. STRICT PRIORITY FILTERING (Global Clean)
@@ -200,6 +231,22 @@ async def _process_individual_logic(df):
         df['priority'] = df['priority'].astype(str).str.lower().str.strip()
     else:
         logger.warning("⚠️ Individual Logic: 'priority' column missing.")
+
+    # === NEW: PRE-FETCH ALREADY VERIFIED EMAILS FROM DATABASE ===
+    # Collect all emails first, then do a single DB query (more efficient)
+    all_emails = df['email'].dropna().astype(str).str.strip().str.lower().unique().tolist()
+    
+    already_verified_in_db = {}
+    try:
+        async with AsyncSessionLocal() as session:
+            lead_repo = LeadRepository(session)
+            already_verified_in_db = await lead_repo.get_verified_emails(all_emails)
+            logger.info(f"✅ Database Check: Found {len(already_verified_in_db)} already-verified emails (will skip ZeroBounce)")
+    except Exception as e:
+        logger.warning(f"⚠️ Database check failed, proceeding with all emails: {e}")
+    
+    skipped_db_count = 0
+    # === END NEW CODE ===
 
     # 2. Iterate Row-by-Row
     for index, row in df.iterrows():
@@ -214,6 +261,16 @@ async def _process_individual_logic(df):
 
         # 3. Check Priority
         if priority == 'top':
+            
+            # === NEW: Check if already verified in DB first ===
+            if email in already_verified_in_db:
+                # Use status from database - no API call needed
+                df.at[index, 'status'] = already_verified_in_db[email]['status']
+                df.at[index, 'tag'] = already_verified_in_db[email]['tag']
+                skipped_db_count += 1
+                continue
+            # === END NEW CODE ===
+            
             try:
                 # Call Individual API (async)
                 raw_response = await verify_individual(email) 
@@ -254,4 +311,8 @@ async def _process_individual_logic(df):
             # We do NOT check "if current_status == unverified". 
             # We BLINDLY overwrite to ensure non-top rows are never accidentally saved as valid.
             df.at[index, 'status'] = 'skipped_low_priority'
-            df.at[index, 'tag'] = 'Review Required' 
+            df.at[index, 'tag'] = 'Review Required'
+    
+    # === NEW: Log savings ===
+    if skipped_db_count > 0:
+        logger.info(f"💰 API Credits Saved: Skipped {skipped_db_count} already-verified emails in individual mode") 

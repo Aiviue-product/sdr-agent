@@ -124,6 +124,47 @@ class LeadRepository:
                 enrichment_status, ai_variables, is_sent"""
         )
 
+    async def get_verified_emails(self, email_list: List[str]) -> dict:
+        """
+        Check which emails from the list are already verified in the database.
+        Returns a dict: { 'email@example.com': {'status': 'valid', 'tag': 'Verified'}, ... }
+        
+        This is used to prevent re-verification of already-verified leads,
+        saving ZeroBounce API credits.
+        """
+        if not email_list:
+            return {}
+        
+        # Clean and lowercase all emails for consistent matching
+        clean_emails = [str(e).strip().lower() for e in email_list if e]
+        
+        if not clean_emails:
+            return {}
+        
+        # Build parameterized query
+        placeholders = ",".join([f":email_{i}" for i in range(len(clean_emails))])
+        params = {f"email_{i}": email for i, email in enumerate(clean_emails)}
+        
+        query = text(f"""
+            SELECT LOWER(email) as email, verification_status, verification_tag
+            FROM leads 
+            WHERE LOWER(email) IN ({placeholders})
+            AND verification_status = 'valid'
+        """)
+        
+        result = await self.db.execute(query, params)
+        rows = result.mappings().all()
+        
+        # Build result dict
+        verified_map = {}
+        for row in rows:
+            verified_map[row['email']] = {
+                'status': row['verification_status'],
+                'tag': row['verification_tag'] or 'Verified'
+            }
+        
+        return verified_map
+
     # ============================================
     # UPDATE OPERATIONS
     # ============================================
