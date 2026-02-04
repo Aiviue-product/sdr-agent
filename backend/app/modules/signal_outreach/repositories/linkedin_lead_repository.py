@@ -497,7 +497,6 @@ class LinkedInLeadRepository:
                     ai_variables=ai_variables,
                     linkedin_dm=linkedin_dm,
                     dm_generation_status=DmGenerationStatus.GENERATED,  # String constant
-                    dm_generation_error=None,
                     version=LinkedInLead.version + 1,  # Increment version
                     updated_at=func.now()
                 )
@@ -522,7 +521,6 @@ class LinkedInLeadRepository:
                     ai_variables=ai_variables,
                     linkedin_dm=linkedin_dm,
                     dm_generation_status=DmGenerationStatus.GENERATED,  # String constant
-                    dm_generation_error=None,
                     version=LinkedInLead.version + 1,  # Always increment version
                     updated_at=func.now()
                 )
@@ -534,7 +532,6 @@ class LinkedInLeadRepository:
         self,
         lead_id: int,
         status: str,
-        error_reason: Optional[str] = None,
         current_version: Optional[int] = None
     ):
         """
@@ -556,7 +553,6 @@ class LinkedInLeadRepository:
                 )
                 .values(
                     dm_generation_status=status,
-                    dm_generation_error=error_reason,
                     version=LinkedInLead.version + 1,
                     updated_at=func.now()
                 )
@@ -570,7 +566,6 @@ class LinkedInLeadRepository:
                 .where(LinkedInLead.id == lead_id)
                 .values(
                     dm_generation_status=status,
-                    dm_generation_error=error_reason,
                     version=LinkedInLead.version + 1,
                     updated_at=func.now()
                 )

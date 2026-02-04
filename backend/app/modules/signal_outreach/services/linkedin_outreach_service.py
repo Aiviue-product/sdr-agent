@@ -165,6 +165,9 @@ class LinkedInOutreachService:
                 author_headline=lead.get("headline", "")
             )
         except RateLimitError:
+            # Mark as failed so frontend shows proper status
+            await self.repo.update_dm_generation_status(lead_id, DmGenerationStatus.FAILED)
+            await self.db.commit()
             return {"success": False, "error": "Rate limit reached. Please try again later."}
 
         # Update database inside transaction for atomicity
@@ -243,10 +246,21 @@ class LinkedInOutreachService:
                         author_headline=lead.get("headline", "")
                     )
                 except RateLimitError:
+                    # Mark current + remaining leads as failed in database
                     remaining_ids = lead_ids[idx:]
                     for remaining_id in remaining_ids:
                         results["failed_count"] += 1
                         results["errors"].append({"lead_id": remaining_id, "error": "Rate limit reached. Try again later."})
+                        # Update status in DB so frontend shows "failed"
+                        try:
+                            await self.repo.update_dm_generation_status(remaining_id, DmGenerationStatus.FAILED)
+                        except Exception as db_err:
+                            logger.error(f"Failed to mark lead {remaining_id} as failed: {db_err}")
+                    # Commit the status updates
+                    try:
+                        await self.db.commit()
+                    except Exception:
+                        pass
                     break
                 
                 # Collect update data for batch commit
@@ -542,8 +556,7 @@ async def generate_dms_background(lead_ids: List[int]) -> None:
             for mark_id in lead_ids_to_mark:
                 await repo.update_dm_generation_status(
                     lead_id=mark_id,
-                    status=DmGenerationStatus.FAILED,
-                    error_reason="rate_limited"
+                    status=DmGenerationStatus.FAILED
                 )
             await db.commit()
 

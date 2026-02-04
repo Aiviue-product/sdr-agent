@@ -85,10 +85,6 @@ class LinkedInLead(Base):
         nullable=False,
         server_default='pending'
     )
-    dm_generation_error = Column(
-        Text,
-        nullable=True
-    )  # Optional error reason (e.g., "rate_limited") for UX messaging
     dm_generation_started_at = Column(
         DateTime(timezone=True), 
         nullable=True

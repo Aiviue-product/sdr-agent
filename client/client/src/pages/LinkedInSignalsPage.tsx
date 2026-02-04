@@ -93,12 +93,13 @@ export default function LinkedInSignalsPage() {
         setPostsPerKeyword,
         handleSearch
     } = useLinkedInSearch({
-        onSearchSuccess: () => {
-            // Reset to first page and show all keywords
-            // Don't call loadLeads() here - the useEffect will handle it
-            // when selectedKeywordFilter changes (avoids stale closure issue)
+        onSearchSuccess: (searchedKeywords: string) => {
+            // Reset to first page
             setCurrentPage(0);
-            setSelectedKeywordFilter('');
+            // Filter by first searched keyword to show ONLY current search results
+            // (not all leads from DB)
+            const firstKeyword = searchedKeywords.split(',')[0]?.trim() || '';
+            setSelectedKeywordFilter(firstKeyword);
         }
     });
 

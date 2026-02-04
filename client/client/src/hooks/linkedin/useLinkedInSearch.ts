@@ -12,7 +12,7 @@ import { ApiError } from '../../types/email-outreach/types';
 import { LinkedInSearchRequest } from '../../types/linkedin';
 
 interface UseLinkedInSearchOptions {
-    onSearchSuccess?: () => void;
+    onSearchSuccess?: (searchedKeywords: string) => void;
 }
 
 interface UseLinkedInSearchReturn {
@@ -48,7 +48,7 @@ export function useLinkedInSearch(options?: UseLinkedInSearchOptions): UseLinked
 
         const request: LinkedInSearchRequest = {
             keywords,
-            date_filter: dateFilter as any, // Cast because of slight type mismatches between frontend/backend strings if any
+            date_filter: dateFilter,
             posts_per_keyword: postsPerKeyword
         };
 
@@ -59,7 +59,8 @@ export function useLinkedInSearch(options?: UseLinkedInSearchOptions): UseLinked
             if (result.success) {
                 toast.success(result.message, { id: 'search' });
                 if (options?.onSearchSuccess) {
-                    options.onSearchSuccess();
+                    // Pass the searched keywords so the list can filter by them
+                    options.onSearchSuccess(searchKeywords);
                 }
             } else {
                 toast.error('Search failed', { id: 'search' });

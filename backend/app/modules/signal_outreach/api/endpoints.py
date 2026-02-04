@@ -201,7 +201,6 @@ async def get_linkedin_lead_detail(
         "connection_status": lead.get("connection_status", "none"),
         "dm_status": lead.get("dm_status", "not_sent"),
         "dm_generation_status": dm_gen_status or "pending",
-        "dm_generation_error": lead.get("dm_generation_error"),
         "dm_generation_started_at": str(lead["dm_generation_started_at"]) if lead.get("dm_generation_started_at") else None,
         "dm_sent_at": str(lead["dm_sent_at"]) if lead.get("dm_sent_at") else None,
         "created_at": str(lead["created_at"]) if lead.get("created_at") else None,
