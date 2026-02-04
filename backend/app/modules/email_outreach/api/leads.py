@@ -36,7 +36,7 @@ async def get_campaign_leads(
         "incomplete_leads_count": incomplete_count
     } 
 
-# --- 2. GET ENRICHMENT LEADS (Leads with Missing Data) --- 
+# --- 2. GET ENRICHMENT LEADS (Leads Needing Enrichment) --- 
 @router.get("/enrichment")
 async def get_enrichment_leads(
     sector: Optional[str] = None,
@@ -45,8 +45,13 @@ async def get_enrichment_leads(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Fetch leads that have valid email but are missing some data.
-    These have valid emails but missing Mobile/LinkedIn/Company/Designation/Sector.
+    Fetch leads that need enrichment. Includes two categories:
+    
+    1. Profile Enrichment: Valid email leads missing Mobile/LinkedIn/Company/Designation/Sector
+    2. Email Enrichment: Leads with invalid/catch-all emails (lead_stage = 'email_enrichment')
+    
+    Response includes verification_status and verification_tag to help frontend
+    distinguish between the two enrichment types.
     """
     lead_repo = LeadRepository(db)
     leads = await lead_repo.get_enrichment_leads(sector, skip, limit)

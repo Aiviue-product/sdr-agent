@@ -52,28 +52,47 @@ class LeadRepository:
 
     async def get_incomplete_count(self):
         """
-        Count leads with missing data (for frontend alert).
+        Count leads needing enrichment (for frontend alert).
+        Includes:
+        - Valid email leads missing profile data (company, linkedin, mobile, designation, sector)
+        - Invalid/catch-all email leads (lead_stage = 'email_enrichment')
         """
         count_query = """
             SELECT COUNT(*) as incomplete_count
             FROM leads 
-            WHERE verification_status = 'valid'
-            AND (company_name IS NULL OR linkedin_url IS NULL OR mobile_number IS NULL 
-                 OR designation IS NULL OR sector IS NULL)
+            WHERE 
+                -- Valid email but missing profile data
+                (verification_status = 'valid' AND 
+                 (company_name IS NULL OR linkedin_url IS NULL OR mobile_number IS NULL 
+                  OR designation IS NULL OR sector IS NULL))
+                OR
+                -- Invalid email leads needing email enrichment
+                lead_stage = 'email_enrichment'
         """
         result = await self.db.execute(text(count_query))
         return result.scalar() or 0
 
     async def get_enrichment_leads(self, sector: Optional[str] = None, skip: int = 0, limit: int = DEFAULT_PAGE_SIZE):
         """
-        Fetch leads that have valid email but are missing some data.
+        Fetch leads needing enrichment:
+        - Valid email leads missing profile data (company, linkedin, mobile, designation, sector)
+        - Invalid/catch-all email leads (lead_stage = 'email_enrichment')
+        
+        Returns verification_status and verification_tag so frontend can distinguish
+        between profile enrichment needs vs email enrichment needs.
         """
         query_str = """
-            SELECT id, first_name, last_name, company_name, designation, sector, email, mobile_number, linkedin_url, lead_stage 
+            SELECT id, first_name, last_name, company_name, designation, sector, email, 
+                   mobile_number, linkedin_url, lead_stage, verification_status, verification_tag
             FROM leads 
-            WHERE verification_status = 'valid'
-            AND (company_name IS NULL OR linkedin_url IS NULL OR mobile_number IS NULL 
-                 OR designation IS NULL OR sector IS NULL)
+            WHERE 
+                -- Valid email but missing profile data
+                (verification_status = 'valid' AND 
+                 (company_name IS NULL OR linkedin_url IS NULL OR mobile_number IS NULL 
+                  OR designation IS NULL OR sector IS NULL))
+                OR
+                -- Invalid email leads needing email enrichment
+                lead_stage = 'email_enrichment'
         """
         params = {"limit": limit, "offset": skip}
 

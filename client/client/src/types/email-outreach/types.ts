@@ -16,6 +16,8 @@ export interface Lead {
     sector: string;
     email: string;
     verification_status: string;
+    verification_tag?: string;
+    lead_stage?: string;
 
     // Generated Emails
     email_1_subject?: string;

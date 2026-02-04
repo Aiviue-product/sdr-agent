@@ -7,19 +7,29 @@ logger = logging.getLogger("lead_service")
 
 async def save_verified_leads_to_db(df):
     """
-    Saves ALL verified leads.
-    - Fully populated -> marked as 'campaign'
-    - Missing fields  -> marked as 'enrichment'
+    Saves leads to database based on verification status:
+    - 'valid' emails -> lead_stage = 'campaign' (ready for outreach)
+    - 'invalid', 'catch-all', 'api_error' -> lead_stage = 'email_enrichment' (needs email correction)
+    - 'skipped_low_priority' -> NOT saved (intentionally filtered out)
     """
     logger.info(f"💾 Processing {len(df)} rows for database storage...")
 
     leads_to_save = []
     skipped_count = 0
+    email_enrichment_count = 0
 
     for index, row in df.iterrows():
-        # 1. Verification Check
+        # 1. Verification Check - Determine lead_stage based on status
         status = str(row.get('status', '')).lower()
-        if status != 'valid':
+        
+        # Determine lead_stage based on verification status
+        if status == 'valid':
+            lead_stage = 'campaign'  # Valid email → Campaign ready
+        elif status in ['invalid', 'catch-all', 'api_error']:
+            lead_stage = 'email_enrichment'  # Bad/unverified email → Needs email enrichment
+            email_enrichment_count += 1
+        else:
+            # Skip low priority leads (they're intentionally filtered out)
             skipped_count += 1
             continue
 
@@ -47,12 +57,7 @@ async def save_verified_leads_to_db(df):
         priority = clean(row.get('priority'))
         tag = str(row.get('tag', ''))
 
-        # 4. DETERMINE LEAD STAGE (Updated Logic)
-        # All verified email leads go to campaign - missing fields don't block them
-        # The Enrichment page will separately show leads with missing data
-        lead_stage = 'campaign'  # Valid email = Campaign ready
-
-        # 5. Prepare Record
+        # 4. Prepare Record
         leads_to_save.append({  
             "email": email,
             "first_name": first_name,
@@ -69,15 +74,16 @@ async def save_verified_leads_to_db(df):
         })
 
     if not leads_to_save:
-        logger.info("ℹ️ No verified leads found to save.")
+        logger.info("ℹ️ No leads found to save.")
         return
 
-    # 6. Batch Upsert to DB (via repository)
+    # 5. Batch Upsert to DB (via repository)
     async with AsyncSessionLocal() as session:
         try:
             lead_repo = LeadRepository(session)
             await lead_repo.bulk_upsert_leads(leads_to_save)
-            logger.info(f"✅ Saved {len(leads_to_save)} leads to DB (Campaign + Enrichment).")
+            campaign_count = len(leads_to_save) - email_enrichment_count
+            logger.info(f"✅ Saved {len(leads_to_save)} leads to DB: {campaign_count} to Campaign, {email_enrichment_count} to Email Enrichment.")
             
         except Exception as e:
             await session.rollback()
