@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Loader2, Search } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, Users } from 'lucide-react';
 import Link from 'next/link';
 
 interface LinkedInSearchHeaderProps {
@@ -108,6 +108,14 @@ export default function LinkedInSearchHeader({
                             </svg>
                             Global Activity
                         </button>
+
+                        <Link
+                            href="/linkedin-signals/leads"
+                            className="flex items-center gap-2 px-6 py-2 rounded-lg font-bold bg-gradient-to-r from-teal-600 to-cyan-600 text-white hover:from-teal-700 hover:to-cyan-700 shadow-lg shadow-teal-200 transition-all"
+                        >
+                            <Users className="w-4 h-4" />
+                            Show My Leads
+                        </Link>
                     </div>
                 </div>
             </div>

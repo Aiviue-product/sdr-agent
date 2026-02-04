@@ -93,10 +93,13 @@ export default function LinkedInSignalsPage() {
         setPostsPerKeyword,
         handleSearch
     } = useLinkedInSearch({
-        onSearchSuccess: () => {
+        onSearchSuccess: (searchedKeywords: string) => {
+            // Reset to first page
             setCurrentPage(0);
-            setSelectedKeywordFilter('');
-            loadLeads();
+            // Filter by first searched keyword to show ONLY current search results
+            // (not all leads from DB)
+            const firstKeyword = searchedKeywords.split(',')[0]?.trim() || '';
+            setSelectedKeywordFilter(firstKeyword);
         }
     });
 

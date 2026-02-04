@@ -19,6 +19,9 @@ export interface LinkedInLead {
     created_at?: string;
 }
 
+// DM Generation Status type
+export type DmGenerationStatus = 'pending' | 'generated' | 'failed';
+
 export interface LinkedInLeadDetail extends LinkedInLead {
     post_data?: Array<{
         activity_id: string;
@@ -30,6 +33,9 @@ export interface LinkedInLeadDetail extends LinkedInLead {
     linkedin_dm?: string;
     dm_sent_at?: string;
     updated_at?: string;
+    // DM Generation (background processing)
+    dm_generation_status?: DmGenerationStatus;
+    dm_generation_started_at?: string;
 }
 
 export interface LinkedInSearchRequest {
