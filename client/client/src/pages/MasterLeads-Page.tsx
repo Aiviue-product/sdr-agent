@@ -155,8 +155,15 @@ export default function MasterLeadsPage() {
                                                         <span className="text-xs text-slate-400 italic">No signal detected</span>
                                                     )
                                                 ) : (
-                                                    // ENRICHMENT VIEW: Show Missing Fields
-                                                    <div className="flex gap-2">
+                                                    // ENRICHMENT VIEW: Show Missing Fields & Email Issues
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {/* Email Issues - Check if lead needs email enrichment */}
+                                                        {lead.lead_stage === 'email_enrichment' && (
+                                                            lead.verification_status === 'catch-all' 
+                                                                ? <span className="px-2 py-0.5 bg-yellow-50 text-yellow-700 text-xs rounded border border-yellow-200">Risky Email</span>
+                                                                : <span className="px-2 py-0.5 bg-orange-50 text-orange-600 text-xs rounded border border-orange-200">Invalid Email</span>
+                                                        )}
+                                                        {/* Missing Profile Fields */}
                                                         {!lead.mobile_number && <span className="px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded border border-red-100">No Mobile</span>}
                                                         {!lead.linkedin_url && <span className="px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded border border-red-100">No LinkedIn</span>}
                                                         {!lead.company_name && <span className="px-2 py-0.5 bg-red-50 text-red-600 text-xs rounded border border-red-100">No Company</span>}
